@@ -1,0 +1,182 @@
+# Mixture of Experts (MoE) Project Roadmap
+
+## 1. Project Architecture & Setup
+The following directory structure is required to maintain modularity and allow parallel work.
+
+```text
+project_moe/
+├── data/                   # Dataset storage
+├── models/
+│   ├── __init__.py
+│   ├── experts.py          # Definition of Expert layers (MLP/CNN)
+│   ├── gating.py           # Definition of Gating mechanism (Soft/Hard)
+│   ├── moe_model.py        # Assembling Experts + Gating
+│   └── dense_baseline.py   # Standard network for comparison
+├── utils/
+│   ├── __init__.py
+│   ├── data_loader.py      # Data preprocessing and loading
+│   └── visualization.py    # Plotting tools for the report
+├── train.py                # Main training loop
+├── experiments.ipynb       # Notebook for analysis and visual generation
+├── requirements.txt        # Python dependencies
+└── report.pdf              # Final deliverable
+
+```
+
+## 2. Phase I: Core Implementation (Week 1)
+
+**Objective:** Establish the codebase and get a basic MoE running.
+**Strategy:** Split the model components (Person A) from the infrastructure (Person B) to avoid merge conflicts.
+
+### Setup
+
+* [ ] Initialize Git repository.
+* [ ] Create the file structure listed above.
+* [ ] Select Dataset: Recommended **CIFAR-10** or **FashionMNIST** (Vision) for clear visualization of expert specialization.
+
+
+
+### Workstream A: Model Architecture
+
+**Owner: Person A**
+
+* [ ] **Implement Experts (`models/experts.py`):**
+* Define a class `ExpertLayer` (e.g., a simple 2-layer MLP with ReLU).
+* Ensure it handles batch inputs correctly.
+
+
+* [ ] **Implement Gating (`models/gating.py`):**
+* Create `GatingNetwork` that takes input  and outputs weights .
+
+
+* Implement the logic for Softmax output (probabilities).
+
+
+* [ ] **Assemble MoE (`models/moe_model.py`):**
+* Combine Experts and Gating.
+* Implement the weighted sum: .
+
+
+* Allow the number of experts () to be a parameter.
+
+
+
+
+
+### Workstream B: Infrastructure & Baseline
+
+**Owner: Person B**
+
+* [ ] **Data Pipeline (`utils/data_loader.py`):**
+* Implement PyTorch/TensorFlow dataloaders for the chosen dataset.
+* Ensure train/validation/test splits are correct.
+
+
+* [ ] **Dense Baseline (`models/dense_baseline.py`):**
+* Create a standard sequential network.
+* **Crucial:** Calculate the number of parameters to ensure the baseline has "equivalent capacity" to the MoE model for fair comparison.
+    *   *Option A (Iso-FLOPs):* A dense net with the same *active* parameter count (fair for speed).
+    *   *Option B (Iso-Param):* A dense net with the same *total* parameter count (fair for storage).
+
+
+
+
+* [ ] **Training Loop (`train.py`):**
+* Build a generic training function taking `model`, `optimizer`, and `criterion`.
+* Implement logging for Loss and Accuracy.
+* *Note:* Ensure you can mask loss based on gating decisions to track "Loss per Expert".
+* 
+*Extension:* Add logic to track "Expert Usage" (frequency of selection) during training.
+
+
+
+
+
+## 3. Phase II: Experimentation & Variations (Week 2)
+
+**Objective:** Generate data for the report. You need to compare methods and visualize internals.
+**Strategy:** Person A refines the MoE logic; Person B runs the heavy training and visualization code.
+
+### Workstream A: Advanced MoE Logic
+
+**Owner: Person A**
+
+* [ ] **Hard Routing Implementation:**
+* Modify `moe_model.py` to support "Top-k" selection (Hard routing).
+
+
+* Ensure gradients can still flow (or use simple masking if strictly following standard Top-k).
+
+
+* [ ] **Regularization:**
+* Add logic to penalize low entropy in gating (to prevent only one expert being used all the time).
+
+* [ ] **Originality Spike (Pick One):**
+    * Implement Gumbel-Softmax for differentiable top-k routing.
+    * OR: Implement a "Load Balancing" loss auxiliary term to force expert usage.
+
+
+
+
+
+### Workstream B: Execution & Visualization
+
+**Owner: Person B**
+
+* [ ] **Visualization Tools (`utils/visualization.py`):**
+* Create functions to plot:
+* Expert activation distribution (Histogram).
+* Loss curves per expert.
+
+
+* Heatmaps of (Class vs. Expert) to show specialization.
+
+
+
+
+
+
+* [ ] **Run Experiments (comparative study):**
+* Run 1: Dense Baseline (Benchmark).
+* Run 2: MoE with Soft Routing.
+* Run 3: MoE with Hard Routing (Top-k).
+* Run 4: MoE with varying  experts (e.g., 4 vs 8 vs 16).
+
+
+
+
+
+## 4. Phase III: Analysis & Reporting (Week 3)
+
+**Objective:** Synthesize findings into the deliverables.
+**Strategy:** Split the writing based on the technical implementation work.
+
+### Analysis Tasks (Joint)
+
+* [ ] **Specialization Analysis:** Check if specific experts handle specific classes (e.g., Expert 1 handles "Shoes", Expert 2 handles "Shirts").
+
+
+* [ ] **Performance vs. Cost:** specific analysis on inference cost vs accuracy.
+
+Report Writing (4-6 Pages) 
+
+* [ ] **Introduction & MoE Concept:** Explain Conditional Computation and Routing [Person A].
+* [ ] **Model Description:** Diagram of the architecture and math formulation () [Person A].
+* [ ] **Protocol:** Dataset details, hyperparameters, and hardware used [Person B].
+* [ ] **Results & Interpretation:**
+* Compare Baseline vs MoE accuracy.
+* Discuss the impact of Gating (Soft vs Hard) [Person B].
+* Show visualizations of Expert Loading [Person B].
+
+
+* [ ] **Critical Discussion:** discuss limits (e.g., collapse, training instability) [Person A].
+
+### Final Polish
+
+* [ ] **Code Cleanup:** Add comments and docstrings.
+* [ ] **Presentation:** Prepare 5-6 slides for the 10-minute oral defense.
+
+
+* [ ] **Zip Deliverables:** Ensure `code + report + slides` are ready.
+
+```
