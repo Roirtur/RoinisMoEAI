@@ -8,19 +8,21 @@ project_moe/
 ├── data/                   # Dataset storage
 ├── models/
 │   ├── __init__.py
+│   ├── dense_baseline.py   # Standard network for comparison
 │   ├── experts.py          # Definition of Expert layers (MLP/CNN)
 │   ├── gating.py           # Definition of Gating mechanism (Soft/Hard)
-│   ├── moe_model.py        # Assembling Experts + Gating
-│   └── dense_baseline.py   # Standard network for comparison
+│   └── moe_model.py        # Assembling Experts + Gating
+├── report/                 # Report source files
+│   └── report.tex
 ├── utils/
 │   ├── __init__.py
 │   ├── data_loader.py      # Data preprocessing and loading
 │   └── visualization.py    # Plotting tools for the report
-├── train.py                # Main training loop
 ├── experiments.ipynb       # Notebook for analysis and visual generation
+├── README.md               # Project documentation
 ├── requirements.txt        # Python dependencies
-└── report.pdf              # Final deliverable
-
+├── roadmap.md              # Project roadmap
+└── train.py                # Main training loop
 ```
 
 ## 2. Phase I: Core Implementation (Week 1)
@@ -30,8 +32,8 @@ project_moe/
 
 ### Setup
 
-* [ ] Initialize Git repository.
-* [ ] Create the file structure listed above.
+* [x] Initialize Git repository.
+* [x] Create the file structure listed above.
 * [ ] Select Dataset: Recommended **CIFAR-10** or **FashionMNIST** (Vision) for clear visualization of expert specialization.
 
 
