@@ -67,16 +67,18 @@ project_moe/
 
 **Owner: Person B**
 
-* [ ] **Data Pipeline (`utils/data_loader.py`):**
+* [x] **Data Pipeline (`utils/data_loader.py`):**
 * Implement PyTorch/TensorFlow dataloaders for the chosen dataset.
 * Ensure train/validation/test splits are correct.
 
 
-* [ ] **Dense Baseline (`models/dense_baseline.py`):**
-* Create a standard sequential network.
-* **Crucial:** Calculate the number of parameters to ensure the baseline has "equivalent capacity" to the MoE model for fair comparison.
-    *   *Option A (Iso-FLOPs):* A dense net with the same *active* parameter count (fair for speed).
-    *   *Option B (Iso-Param):* A dense net with the same *total* parameter count (fair for storage).
+* [x] **Dense Baseline (`models/dense_baseline.py`):**
+* Implement a **ResNet-18** style architecture.
+* Created `DenseResNet` class with a `width_multiplier` argument.
+* This allows creating both:
+    *   *Iso-FLOPs Baseline:* Reduce width ($k < 1.0$) to match active experts.
+    *   *Iso-Params Baseline:* Increase width ($k \ge 1.0$) to match total MoE storage.
+* Includes a helper `count_parameters()` method for exact comparison.
 
 
 
