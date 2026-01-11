@@ -1,10 +1,52 @@
 import torch
 from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, random_split
 
-def get_dataloaders(dataset_name, batch_size):
+def get_dataloaders(batch_size=128, data_dir='./data', val_split=0.1, num_workers=2):
     """
-    Implement PyTorch dataloaders for the chosen dataset (CIFAR-10/FashionMNIST).
-    Ensure train/validation/test splits are correct.
+    Load CIFAR-100 dataset, apply transforms, return DataLoaders (train, val, test).
+    
+    Args:
+        batch_size (int): Batch size for training/eval
+        data_dir (str): Directory to store data
+        val_split (float): Fraction of training data to use for validation
+        num_workers (int): Number of worker threads for loading data
+    
+    Returns:
+        train_loader, val_loader, test_loader, num_classes, img_size (channels, height, width)
     """
-    # TODO: Load dataset, apply transforms, return DataLoaders (train, val, test)
-    pass
+    # Mean and Std for CIFAR-100 (for RGB)
+    stats = ((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+    
+    train_transform = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(*stats)
+    ])
+    
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(*stats)
+    ])
+    
+    num_classes = 100
+    img_size = (3, 32, 32)
+    
+    # Load Full Training Set
+    full_train_set = datasets.CIFAR100(root=data_dir, train=True, download=True, transform=train_transform)
+    test_set = datasets.CIFAR100(root=data_dir, train=False, download=True, transform=test_transform)
+
+    # Split Train into Train/Val
+    val_size = int(len(full_train_set) * val_split)
+    train_size = len(full_train_set) - val_size
+    train_set, val_set = random_split(full_train_set, [train_size, val_size])
+
+    # Note: We apply the same transform to val set as train set here (with augmentation).
+    train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
+    val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+
+    print(f"Loaded CIFAR-100: {len(train_set)} train, {len(val_set)} val, {len(test_set)} test images.")
+    
+    return train_loader, val_loader, test_loader, num_classes, img_size

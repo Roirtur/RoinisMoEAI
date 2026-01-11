@@ -34,9 +34,7 @@ project_moe/
 
 * [x] Initialize Git repository.
 * [x] Create the file structure listed above.
-* [ ] Select Dataset: Recommended **CIFAR-10** or **FashionMNIST** (Vision) for clear visualization of expert specialization.
-
-
+* [x] Select Dataset: **CIFAR-100**.
 
 ### Workstream A: Model Architecture
 
