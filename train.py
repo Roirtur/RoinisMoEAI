@@ -1,31 +1,130 @@
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import argparse
+import os
+import time
+from tqdm import tqdm
+from utils.data_loader import get_dataloaders
+from models.dense_baseline import get_baseline
 
-def train(model, dataloader, optimizer, criterion, device):
+def train_baseline(model, train_loader, val_loader, epochs, device, save_path):
     """
-    Build a generic training function taking model, optimizer, and criterion.
-    Implement logging for Loss and Accuracy.
-    Note: Ensure you can mask loss based on gating decisions to track "Loss per Expert".
-    Extension: Add logic to track "Expert Usage" (frequency of selection) during training.
+    Training loop specifically for the Dense Baseline model.
     """
-    # TODO: Training loop
-    # return metrics
+    print(f"Starting Dense Baseline training on {device}...")
+    
+    criterion = nn.CrossEntropyLoss()
+    # Standard SGD for ResNet on CIFAR
+    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
+    best_acc = 0.0
+    
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
+        for inputs, targets in pbar:
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            
+            pbar.set_postfix({'loss': running_loss/total, 'acc': 100.*correct/total})
+            
+        train_acc = 100. * correct / total
+        
+        # Validation phase
+        val_acc = evaluate(model, val_loader, criterion, device)
+        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+        
+        # Save best model
+        if val_acc > best_acc:
+            print(f"New best accuracy! Saving to {save_path}")
+            best_acc = val_acc
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            torch.save(model.state_dict(), save_path)
+            
+        scheduler.step()
+
+    print(f"Training finished. Best Validation Accuracy: {best_acc:.2f}%")
+
+def train_moe(model, train_loader, val_loader, epochs, device, save_path):
+    """
+    Placeholder for MoE training loop.
+    Will include specific logic for:
+    - Auxiliary loss (Load Balancing)
+    - Expert usage tracking
+    """
+    # TODO: Implement MoE training with auxiliary loss handling
+    print("MoE training not yet implemented.")
     pass
 
 def evaluate(model, dataloader, criterion, device):
-    # TODO: Evaluation loop
-    pass
+    """
+    Generic evaluation loop.
+    """
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs = model(inputs)
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+    
+    return 100. * correct / total
 
 def main():
-    # TODO: Parse arguments (epochs, batch_size, experts, etc.)
-    # TODO: Setup device, data, model, optimizer
-    # TODO: Run training experiments
-    #   - Run 1: Dense Baseline
-    #   - Run 2: MoE Soft
-    #   - Run 3: MoE Hard
-    #   - Run 4: Varying experts
-    pass
+    parser = argparse.ArgumentParser(description='Train MoE or Dense Baseline on CIFAR-100')
+    parser.add_argument('--model_type', type=str, required=True, choices=['baseline', 'moe'],
+                        help='Type of model to train')
+    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
+    parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
+    parser.add_argument('--width_multiplier', type=float, default=1.0, 
+                        help='Width multiplier for Dense Baseline (to match MoE parameters/FLOPs)')
+    parser.add_argument('--save_dir', type=str, default='./checkpoints', help='Directory to save models')
+    
+    args = parser.parse_args()
+    
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Load Data
+    train_loader, val_loader, test_loader, num_classes, img_size = get_dataloaders(batch_size=args.batch_size)
+    
+    if args.model_type == 'baseline':
+        print(f"Initializing Dense Baseline (Width x{args.width_multiplier})...")
+        model = get_baseline(width_multiplier=args.width_multiplier)
+        model = model.to(device)
+        
+        # Define save path based on config
+        save_name = f"baseline_w{args.width_multiplier}.pth"
+        save_path = os.path.join(args.save_dir, save_name)
+        
+        train_baseline(model, train_loader, val_loader, args.epochs, device, save_path)
+        
+    elif args.model_type == 'moe':
+        # TODO: Instantiate MoE model
+        print("MoE model not fully implemented yet.")
+        save_path = os.path.join(args.save_dir, "moe_model.pth")
+        
+        # train_moe(model, ...)
+        pass
 
 if __name__ == "__main__":
     main()

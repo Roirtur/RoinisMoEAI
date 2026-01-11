@@ -83,9 +83,11 @@ project_moe/
 
 
 
-* [ ] **Training Loop (`train.py`):**
-* Build a generic training function taking `model`, `optimizer`, and `criterion`.
-* Implement logging for Loss and Accuracy.
+* [x] **Training Loop (`train.py`):**
+* Implemented separate `train_baseline` function with full training logic (SGD + Cosine Scheduling).
+* Added `train_moe` placeholder for future implementation.
+* Added `main` with `argparse` to select model type and save path.
+* Supports saving/loading logic to avoid retraining.
 * *Note:* Ensure you can mask loss based on gating decisions to track "Loss per Expert".
 * 
 *Extension:* Add logic to track "Expert Usage" (frequency of selection) during training.
