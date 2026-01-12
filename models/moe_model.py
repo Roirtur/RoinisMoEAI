@@ -1,10 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from experts import *
-from gating import *
-#from models.experts import ExpertLayer
-#from models.gating import GatingNetwork
+from .experts import ExpertLayer
+from .gating import GatingNetwork
 
 class MoEModel(nn.Module):
     """
@@ -54,7 +52,7 @@ class MoEModel(nn.Module):
                 # weight the output by the gating probability
                 scaling_factor = topk_prob[batch_indexes, k_rank].unsqueeze(1)
                 
-                final_output[batch_indexes] = expert_output * scaling_factor
+                final_output[batch_indexes] += expert_output * scaling_factor
         
         # load balancing auxiliary loss
         # encourages average uniform usage of experts
