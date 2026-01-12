@@ -75,8 +75,8 @@ project_moe/
 
 
 * [x] **Dense Baseline (`models/dense_baseline.py`):**
-* Implement a **ResNet-18** style architecture.
-* Created `DenseResNet` class with a `width_multiplier` argument.
+* Implemented a **SimpleBaseline** style architecture (matching ExpertLayer structure).
+* Created `SimpleBaseline` class with a `width_multiplier` argument.
 * This allows creating both:
     *   *Iso-FLOPs Baseline:* Reduce width ($k < 1.0$) to match active experts.
     *   *Iso-Params Baseline:* Increase width ($k \ge 1.0$) to match total MoE storage.
@@ -107,7 +107,7 @@ project_moe/
 
 **Owner: Person A**
 
-* [ ] **Regularization & Load Balancing:**
+* [x] **Regularization & Load Balancing:**
     * Add logic to penalize low entropy in gating (prevent collapse to a single expert).
     * Implement a "Load Balancing" loss to ensure experts are utilized evenly (e.g., Coefficient of Variation).
 
