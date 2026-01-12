@@ -1,8 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.experts import ExpertLayer
-from models.gating import GatingNetwork
+from experts import *
+from gating import *
+#from models.experts import ExpertLayer
+#from models.gating import GatingNetwork
 
 class MoEModel(nn.Module):
     """
@@ -18,11 +20,12 @@ class MoEModel(nn.Module):
     - 1 GatingNetwork
     - N ExpertLayers (ModuleList)
     """
-    def __init__(self, num_experts=4, num_classes=100, input_channels = 3):
+    def __init__(self, num_experts=4, num_classes=100, input_channels = 3, top_k = 1):
         super().__init__()
         self.num_classes = num_classes
         self.num_experts = num_experts
-        
+        self.top_k = top_k
+
         self.router = GatingNetwork(input_channels=input_channels, num_experts=num_experts)
 
         self.experts = nn.ModuleList([
@@ -31,28 +34,27 @@ class MoEModel(nn.Module):
         ])
 
     def forward(self, x):
-        # probabilities from Router
-        router_probs = self.router(x)
+        router_probs = self.router(x) # -> [0.1, 0.8, 0.05, 0.05]
         
-        # best expert for each image (Top-1)
-        best_weights, best_indices = torch.max(router_probs, dim=1)
+        # best top-k expert for each image (Top-1 default)
+        topk_prob, topk_indexes = torch.topk(router_probs, self.top_k, dim=1)
         
         batch_size = x.size(0)
         final_output = torch.zeros(batch_size, self.num_classes, device=x.device)
 
         for i, expert in enumerate(self.experts):
-            indices = (best_indices == i).nonzero(as_tuple=True)[0]
+            batch_indexes, k_rank = (topk_indexes == i).nonzero(as_tuple=True)
             
-            if len(indices) > 0:
-                selected_inputs = x[indices]
+            if len(batch_indexes) > 0:
+                selected_inputs = x[batch_indexes]
                 
                 # forward pass through the specific expert
                 expert_output = expert(selected_inputs)
                 
                 # weight the output by the gating probability
-                scaling_factor = best_weights[indices].unsqueeze(1)
+                scaling_factor = topk_prob[batch_indexes, k_rank].unsqueeze(1)
                 
-                final_output[indices] = expert_output * scaling_factor
+                final_output[batch_indexes] = expert_output * scaling_factor
         
         # load balancing auxiliary loss
         # encourages average uniform usage of experts
@@ -63,16 +65,14 @@ class MoEModel(nn.Module):
         return final_output, router_probs, aux_loss
 
 if __name__ == "__main__":
-    # Quick Test
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Running on {device}")
-    
     x = torch.randn(10, 3, 32, 32).to(device)
-    model = MoEModel(num_experts=4, num_classes=100).to(device)
     
+    # Test avec Top-2
+    print("Testing Top-2 routing...")
+    model = MoEModel(num_experts=4, num_classes=100, top_k=2).to(device)
     outputs, probs, aux_loss = model(x)
     
-    print(f"Output shape: {outputs.shape}") # Should be [10, 100]
-    print(f"Prob shape:   {probs.shape}")   # Should be [10, 4]
-    print(f"Aux Loss:     {aux_loss.item()}")
+    print(f"Output shape: {outputs.shape}")
+    print(f"Prob shape:   {probs.shape}")
     print("Success.")
