@@ -126,7 +126,7 @@ project_moe/
         * Heatmaps of (Class vs. Expert) to show specialization.
 
 * [ ] **Run Experiments (comparative study):**
-    * Run 1: Dense Baseline (ResNet-18).
+    * Run 1: Dense Baseline.
     * Run 2: **MoE - Conditional Computation (Top-1)** [Main approach].
     * Run 3: MoE with Top-2 Routing (if implemented).
     * Run 4: MoE with varying experts (e.g., 4 vs 8).
