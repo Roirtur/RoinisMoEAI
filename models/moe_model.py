@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from experts import ExpertLayer
-from gating import GatingNetwork
+from models.experts import ExpertLayer
+from models.gating import GatingNetwork
 
 class MoEModel(nn.Module):
     """

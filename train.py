@@ -7,6 +7,7 @@ import time
 from tqdm import tqdm
 from utils.data_loader import get_dataloaders
 from models.dense_baseline import get_baseline
+from models.moe_model import MoEModel
 
 def train_baseline(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
@@ -46,8 +47,8 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
             
         train_acc = 100. * correct / total
         
-        val_acc = evaluate(model, val_loader, criterion, device)
-        test_acc = evaluate(model, test_loader, criterion, device)
+        val_acc = evaluate(model, val_loader, device)
+        test_acc = evaluate(model, test_loader, device)
         print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Test Acc: {test_acc:.2f}%")
         
         # Save model
@@ -58,18 +59,74 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
 
     print(f"Training finished. Final Test Accuracy: {test_acc:.2f}%")
 
-def train_moe(model, train_loader, val_loader, epochs, device, save_path):
+def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
-    Placeholder for MoE training loop.
-    Will include specific logic for:
-    - Auxiliary loss (Load Balancing)
-    - Expert usage tracking
+    Training loop specifically for the Mixture of Experts model.
     """
-    # TODO: Implement MoE training with auxiliary loss handling
-    print("MoE training not yet implemented.")
-    pass
+    print(f"Starting MoE training on {device}")
+    
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
-def evaluate(model, dataloader, criterion, device):
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train MoE]")
+        for inputs, targets in pbar:
+            inputs, targets = inputs.to(device), targets.to(device)
+            
+            optimizer.zero_grad()
+            
+            outputs, router_probs = model(inputs)
+            
+            loss = criterion(outputs, targets)
+            
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            
+            pbar.set_postfix({'loss': running_loss/total, 'acc': 100.*correct/total})
+            
+        train_acc = 100. * correct / total
+        
+        val_acc = evaluate_moe(model, val_loader, device)
+        test_acc = evaluate_moe(model, test_loader, device)
+        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Test Acc: {test_acc:.2f}%")
+        
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        torch.save(model.state_dict(), save_path)
+            
+        scheduler.step()
+
+    print(f"MoE Training finished. Final Test Accuracy: {test_acc:.2f}%")
+
+
+def evaluate_moe(model, dataloader, device):
+    """
+    Evaluation loop specifically for MoE (handling tuple output).
+    """
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            outputs, _ = model(inputs) # Ignore router_probs
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+    
+    return 100. * correct / total
+
+def evaluate(model, dataloader, device):
     """
     Generic evaluation loop.
     """
@@ -116,12 +173,12 @@ def main():
         train_baseline(model, train_loader, val_loader, test_loader, args.epochs, device, save_path)
         
     elif args.model_type == 'moe':
-        # TODO: Instantiate MoE model
-        print("MoE model not fully implemented yet.")
+        model = MoEModel(num_experts=8, num_classes=num_classes, input_channels=img_size[0])
+        model = model.to(device)
+        
         save_path = os.path.join(args.save_dir, "moe_model.pth")
         
-        # train_moe(model, ...)
-        pass
+        train_moe(model, train_loader, val_loader, test_loader, args.epochs, device, save_path)
 
 if __name__ == "__main__":
     main()

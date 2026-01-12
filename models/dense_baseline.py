@@ -15,9 +15,6 @@ class SimpleBaseline(nn.Module):
     def __init__(self, input_shape=(3, 32, 32), num_classes=100, width_multiplier=1.0):
         super(SimpleBaseline, self).__init__()
         
-        # Base widths corresponding to ExpertLayer
-        # Expert: 32 -> 64 -> 512
-        
         self.planes1 = int(32 * width_multiplier)
         self.planes2 = int(64 * width_multiplier)
         self.hidden_size = int(512 * width_multiplier)
@@ -34,8 +31,6 @@ class SimpleBaseline(nn.Module):
         
         self.flatten = nn.Flatten()
         
-        # Calculate flattened size
-        # Image becomes 8x8 spatial
         self.flat_size = self.planes2 * 8 * 8
         
         self.fc1 = nn.Linear(self.flat_size, self.hidden_size)
@@ -61,7 +56,6 @@ class SimpleBaseline(nn.Module):
         return x
 
     def count_parameters(self):
-        """Returns the total number of trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
 def get_baseline(input_shape, num_classes, width_multiplier=1.0):
