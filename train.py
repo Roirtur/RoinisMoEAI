@@ -81,9 +81,9 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
             optimizer.zero_grad()
             
-            outputs, router_probs = model(inputs)
+            outputs, router_probs, aux_loss = model(inputs)
             
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets) + 1.0 * aux_loss
             
             loss.backward()
             optimizer.step()
@@ -119,7 +119,7 @@ def evaluate_moe(model, dataloader, device):
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs, _ = model(inputs) # Ignore router_probs
+            outputs, _, _ = model(inputs) # Ignore router_probs and aux_loss
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()

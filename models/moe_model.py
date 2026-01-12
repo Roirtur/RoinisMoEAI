@@ -54,7 +54,13 @@ class MoEModel(nn.Module):
                 
                 final_output[indices] = expert_output * scaling_factor
         
-        return final_output, router_probs
+        # load balancing auxiliary loss
+        # encourages average uniform usage of experts
+        mean_probs = router_probs.mean(dim=0)
+        target_probs = torch.ones_like(mean_probs) / self.num_experts
+        aux_loss = F.mse_loss(mean_probs, target_probs)
+        
+        return final_output, router_probs, aux_loss
 
 if __name__ == "__main__":
     # Quick Test
@@ -64,8 +70,9 @@ if __name__ == "__main__":
     x = torch.randn(10, 3, 32, 32).to(device)
     model = MoEModel(num_experts=4, num_classes=100).to(device)
     
-    outputs, probs = model(x)
+    outputs, probs, aux_loss = model(x)
     
     print(f"Output shape: {outputs.shape}") # Should be [10, 100]
     print(f"Prob shape:   {probs.shape}")   # Should be [10, 4]
+    print(f"Aux Loss:     {aux_loss.item()}")
     print("Success.")
