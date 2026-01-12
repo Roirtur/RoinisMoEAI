@@ -8,7 +8,7 @@ from tqdm import tqdm
 from utils.data_loader import get_dataloaders
 from models.dense_baseline import get_baseline
 
-def train_baseline(model, train_loader, val_loader, epochs, device, save_path):
+def train_baseline(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
     Training loop specifically for the Dense Baseline model.
     """
@@ -46,20 +46,17 @@ def train_baseline(model, train_loader, val_loader, epochs, device, save_path):
             
         train_acc = 100. * correct / total
         
-        # Validation phase
         val_acc = evaluate(model, val_loader, criterion, device)
-        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%")
+        test_acc = evaluate(model, test_loader, criterion, device)
+        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Test Acc: {test_acc:.2f}%")
         
-        # Save best model
-        if val_acc > best_acc:
-            print(f"New best accuracy! Saving to {save_path}")
-            best_acc = val_acc
-            os.makedirs(os.path.dirname(save_path), exist_ok=True)
-            torch.save(model.state_dict(), save_path)
+        # Save model
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        torch.save(model.state_dict(), save_path)
             
         scheduler.step()
 
-    print(f"Training finished. Best Validation Accuracy: {best_acc:.2f}%")
+    print(f"Training finished. Final Test Accuracy: {test_acc:.2f}%")
 
 def train_moe(model, train_loader, val_loader, epochs, device, save_path):
     """
@@ -109,14 +106,14 @@ def main():
     
     if args.model_type == 'baseline':
         print(f"Initializing Dense Baseline (Width x{args.width_multiplier})...")
-        model = get_baseline(width_multiplier=args.width_multiplier)
+        model = get_baseline(input_shape=img_size, num_classes=num_classes, width_multiplier=args.width_multiplier)
         model = model.to(device)
         
         # Define save path based on config
         save_name = f"baseline_w{args.width_multiplier}.pth"
         save_path = os.path.join(args.save_dir, save_name)
         
-        train_baseline(model, train_loader, val_loader, args.epochs, device, save_path)
+        train_baseline(model, train_loader, val_loader, test_loader, args.epochs, device, save_path)
         
     elif args.model_type == 'moe':
         # TODO: Instantiate MoE model

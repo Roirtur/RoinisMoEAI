@@ -45,7 +45,7 @@ class DenseResNet(nn.Module):
         self.in_planes = int(64 * width_multiplier)
         
         # Initial convolution
-        self.conv1 = nn.Conv2d(3, self.in_planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(input_shape[0], self.in_planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(self.in_planes)
         
         # ResNet Layers (Standard ResNet18 layout: 2 blocks per layer)
@@ -71,7 +71,7 @@ class DenseResNet(nn.Module):
         out = self.layer2(out)
         out = self.layer3(out)
         out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
+        out = F.adaptive_avg_pool2d(out, (1, 1))
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
@@ -80,6 +80,5 @@ class DenseResNet(nn.Module):
         """Returns the total number of trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-# Helper function to match the prompt's request for flexibility
-def get_baseline(width_multiplier=1.0):
-    return DenseResNet(width_multiplier=width_multiplier)
+def get_baseline(input_shape, num_classes, width_multiplier=1.0):
+    return DenseResNet(input_shape=input_shape, num_classes=num_classes, width_multiplier=width_multiplier)
