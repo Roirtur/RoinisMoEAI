@@ -18,7 +18,7 @@ class MoEModel(nn.Module):
     - 1 GatingNetwork
     - N ExpertLayers (ModuleList)
     """
-    def __init__(self, num_experts=4, num_classes=100, input_channels = 3, top_k = 1):
+    def __init__(self, num_experts=4, num_classes=10, input_channels = 3, top_k = 1):
         super().__init__()
         self.num_classes = num_classes
         self.num_experts = num_experts
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     
     # Test avec Top-2
     print("Testing Top-2 routing...")
-    model = MoEModel(num_experts=4, num_classes=100, top_k=2).to(device)
+    model = MoEModel(num_experts=4, num_classes=10, top_k=2).to(device)
     outputs, probs, aux_loss = model(x)
     
     print(f"Output shape: {outputs.shape}")

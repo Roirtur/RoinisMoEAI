@@ -34,7 +34,7 @@ project_moe/
 
 * [x] Initialize Git repository.
 * [x] Create the file structure listed above.
-* [x] Select Dataset: **CIFAR-100**.
+* [x] Select Dataset: **CIFAR-10**.
 
 ### Workstream A: Model Architecture
 
@@ -90,7 +90,8 @@ project_moe/
 * Added `train_moe` placeholder for future implementation.
 * Added `main` with `argparse` to select model type and save path.
 * Supports saving/loading logic to avoid retraining.
-* *Note:* Ensure you can mask loss based on gating decisions to track "Loss per Expert".
+* [x] Added logic to track "Loss per Expert" (masking loss based on gating decisions).
+* [x] Added logic to track "Data Distribution per Expert" (Expert vs Class heatmap) every epoch.
 * 
 *Extension:* Add logic to track "Expert Usage" (frequency of selection) during training.
 
@@ -142,7 +143,8 @@ project_moe/
 
 ### Analysis Tasks (Joint)
 
-* [ ] **Specialization Analysis:** Check if specific experts handle specific classes (e.g., Expert 1 handles "Shoes", Expert 2 handles "Shirts").
+* [x] **Specialization Analysis:** Check if specific experts handle specific classes (e.g., Expert 1 handles "Shoes", Expert 2 handles "Shirts").
+  * *Update:* Now tracked automatically in training history (Expert vs Class distribution matrix).
 
 
 * [ ] **Performance vs. Cost:** specific analysis on inference cost vs accuracy.

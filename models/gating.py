@@ -23,6 +23,10 @@ class GatingNetwork(nn.Module):
         
         # 32 * 8 * 8 = 2048
         self.linear = nn.Linear(2048, num_experts)
+        
+        # final layer to zero so all experts start with equal probability
+        nn.init.constant_(self.linear.weight, 0)
+        nn.init.constant_(self.linear.bias, 0)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -38,7 +42,7 @@ class GatingNetwork(nn.Module):
         
         # noise for exploration during training for better uniformity
         if self.training:
-            noise = torch.randn_like(logits) * 0.1
+            noise = torch.randn_like(logits) * 1.0
             logits = logits + noise
         
         return F.softmax(logits, dim=1)

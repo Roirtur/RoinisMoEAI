@@ -3,12 +3,11 @@ import torch.nn as nn
 import torch.optim as optim
 import argparse
 import os
-import time
 from tqdm import tqdm
 from utils.data_loader import get_dataloaders
 from models.dense_baseline import get_baseline
 from models.moe_model import MoEModel
-from utils.visualization import HistoryLogger
+from utils import HistoryLogger, get_expert_class_distribution
 
 def train_baseline(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
@@ -77,6 +76,8 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
     history_path = save_path.replace('.pth', '_history.json')
     
     criterion = nn.CrossEntropyLoss()
+    criterion_noreduce = nn.CrossEntropyLoss(reduction='none')
+    
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
 
@@ -89,6 +90,10 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
         # expert usage for this epoch
         epoch_expert_counts = torch.zeros(model.num_experts, device=device)
         
+        # expert loss tracking
+        epoch_expert_loss_sum = torch.zeros(model.num_experts, device=device)
+        epoch_expert_loss_count = torch.zeros(model.num_experts, device=device)
+        
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
         for inputs, targets in pbar:
             inputs, targets = inputs.to(device), targets.to(device)
@@ -100,12 +105,23 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             # Count expert selections for logging
             with torch.no_grad():
                 # indices of the top-k experts selected
-                _, topk_indices = torch.topk(router_probs, k=model.top_k, dim=1)
+                _, topk_indices = torch.topk(router_probs, k=model.top_k, dim=1) # (Batch, k)
                 
                 flat_indices = topk_indices.view(-1)
                 
+                # usage count
                 for i in range(model.num_experts):
                     epoch_expert_counts[i] += (flat_indices == i).sum()
+                    
+                # loss attribution
+                sample_losses = criterion_noreduce(outputs, targets)
+                top1_expert = topk_indices[:, 0]
+                
+                for i in range(model.num_experts):
+                    mask = (top1_expert == i)
+                    if mask.any():
+                        epoch_expert_loss_sum[i] += sample_losses[mask].sum()
+                        epoch_expert_loss_count[i] += mask.sum()
 
             loss = criterion(outputs, targets) + aux_weight * aux_loss
             
@@ -121,8 +137,16 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
         train_acc = 100. * correct / total
         
+        # average loss per expert
+        safe_counts = epoch_expert_loss_count.clone()
+        safe_counts[safe_counts == 0] = 1.0
+        expert_losses = (epoch_expert_loss_sum / safe_counts).cpu().tolist()
+        
         val_acc, val_loss = evaluate_moe(model, val_loader, device)
         test_acc, _ = evaluate_moe(model, test_loader, device)
+        
+        # distribution of data treated by experts
+        expert_class_dist = get_expert_class_distribution(model, val_loader, device)
         
         total_selections = total * model.top_k
         
@@ -132,7 +156,10 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
         print(f"Epoch {epoch+1}: Train: {train_acc:.2f}% | Val: {val_acc:.2f}% | Test: {test_acc:.2f}%")
         print(f"   Usage: [{usage_str}]")
         
-        logger.log_epoch(running_loss/total, train_acc, val_loss, val_acc, expert_counts=epoch_expert_counts)
+        logger.log_epoch(running_loss/total, train_acc, val_loss, val_acc, 
+                         expert_counts=epoch_expert_counts,
+                         expert_losses=expert_losses,
+                         expert_class_dist=expert_class_dist)
 
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(model.state_dict(), save_path)
@@ -187,10 +214,10 @@ def evaluate(model, dataloader, device):
     return 100. * correct / total, running_loss / total
 
 def main():
-    parser = argparse.ArgumentParser(description='Train MoE or Dense Baseline on CIFAR-100')
+    parser = argparse.ArgumentParser(description='Train MoE or Dense Baseline on CIFAR-10')
     parser.add_argument('--model_type', type=str, required=True, choices=['baseline', 'moe'],
                         help='Type of model to train')
-    parser.add_argument('--epochs', type=int, default=100, help='Number of epochs')
+    parser.add_argument('--epochs', type=int, default=1, help='Number of epochs')
     parser.add_argument('--batch_size', type=int, default=128, help='Batch size')
     parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--width_multiplier', type=float, default=1.0, 

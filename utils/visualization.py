@@ -13,10 +13,12 @@ class HistoryLogger:
         self.history = {
             'train_loss': [], 'train_acc': [],
             'val_loss': [], 'val_acc': [],
-            'expert_usage': []
+            'expert_usage': [],
+            'expert_loss': [],
+            'expert_class_distribution': []
         }
 
-    def log_epoch(self, train_loss, train_acc, val_loss, val_acc, expert_counts=None):
+    def log_epoch(self, train_loss, train_acc, val_loss, val_acc, expert_counts=None, expert_losses=None, expert_class_dist=None):
         self.history['train_loss'].append(train_loss)
         self.history['train_acc'].append(train_acc)
         self.history['val_loss'].append(val_loss)
@@ -25,6 +27,10 @@ class HistoryLogger:
             if isinstance(expert_counts, torch.Tensor):
                 expert_counts = expert_counts.cpu().tolist()
             self.history['expert_usage'].append(expert_counts)
+        if expert_losses is not None:
+            self.history['expert_loss'].append(expert_losses)
+        if expert_class_dist is not None:
+            self.history['expert_class_distribution'].append(expert_class_dist)
 
     def save(self, filepath):
         """Save history to a JSON file."""
@@ -167,7 +173,7 @@ def plot_expert_heatmap(model, dataloader, device, save_path):
     plt.figure(figsize=(15, 8))
     sns.heatmap(heatmap_norm, cmap="viridis", cbar_kws={'label': 'Probability'})
     plt.title('Expert Specialization by Class')
-    plt.xlabel('CIFAR-100 Classes')
+    plt.xlabel('CIFAR-10 Classes')
     plt.ylabel('Expert ID')
     plt.tight_layout()
     plt.savefig(save_path)
@@ -176,13 +182,6 @@ def plot_expert_heatmap(model, dataloader, device, save_path):
 def compare_params_vs_performance(models_data, save_path):
     """
     Scatter plot comparing Model Size (Parameters/FLOPs) vs Accuracy.
-    
-    Args:
-        models_data (list of dict):
-            - 'name': str
-            - 'params': int (number of parameters)
-            - 'accuracy': float (final test accuracy)
-        save_path (str): Path to save the figure.
     """
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
@@ -200,3 +199,28 @@ def compare_params_vs_performance(models_data, save_path):
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()
+
+def get_expert_class_distribution(model, dataloader, device):
+    """
+    Computes which expert handles which class on the given dataloader.
+    """
+    model.eval()
+    heatmap = torch.zeros(model.num_experts, model.num_classes, device=device)
+    
+    with torch.no_grad():
+        for inputs, targets in dataloader:
+            inputs, targets = inputs.to(device), targets.to(device)
+            out = model(inputs)
+            if len(out) == 3:
+                _, router_probs, _ = out
+            else:
+                _, router_probs = out
+            
+            _, top1_indices = torch.max(router_probs, dim=1)
+            
+            for i in range(len(targets)):
+                expert_idx = top1_indices[i]
+                class_idx = targets[i]
+                heatmap[expert_idx, class_idx] += 1
+                
+    return heatmap.cpu().tolist()

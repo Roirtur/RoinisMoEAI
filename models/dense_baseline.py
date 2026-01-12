@@ -12,7 +12,7 @@ class SimpleBaseline(nn.Module):
     Linear -> ReLU
     Linear -> Output
     """
-    def __init__(self, input_shape=(3, 32, 32), num_classes=100, width_multiplier=1.0):
+    def __init__(self, input_shape=(3, 32, 32), num_classes=10, width_multiplier=1.0):
         super(SimpleBaseline, self).__init__()
         
         self.planes1 = int(32 * width_multiplier)

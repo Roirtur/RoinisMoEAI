@@ -6,7 +6,7 @@ class ExpertLayer(nn.Module):
     Input: (Batch_Subset, 3, 32, 32)
     Output: (Batch_Subset, num_classes)
     """
-    def __init__(self, input_channels=3, num_classes=100):
+    def __init__(self, input_channels=3, num_classes=10):
         super().__init__()
         
         # Layer 1
