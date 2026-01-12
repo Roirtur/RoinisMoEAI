@@ -14,14 +14,21 @@ class GatingNetwork(nn.Module):
     - Tiny CNN to be fast.
     - Example: Conv2d (stride=2 for quick downsampling) -> ReLU -> Flatten -> Linear(num_experts) -> Softmax.
     """
-    def __init__(self, input_channels=3, num_experts=4):
+    def __init__(self, input_channels = 3, num_experts = 4):
         super().__init__()
-        # TODO: Define the layers for the Tiny CNN router
-        # Goal: Rapidly look at the image and decide: "Is this a vehicle, a fish, or a flower?"
+        self.conv1 = torch.nn.Conv2d(in_channels =  input_channels, out_channels = 16, kernel_size = 3, stride = 2, padding = 1)
+        self.conv2 = torch.nn.Conv2d(in_channels = 16, out_channels = 32, kernel_size = 3, stride = 2, padding = 1)
+        self.relu = torch.nn.ReLU()
+        self.flatten = torch.nn.Flatten()
+        #in_features = 32 (out conv2) * 8 *8 = 2048
+        self.linear = torch.nn.Linear(in_features = 2048, out_features = num_experts)
         pass
 
     def forward(self, x):
-        # TODO: Return expert weights
-        # 1. Pass image through the tiny CNN
-        # 2. Apply Softmax to get probabilities (weights)
-        return x
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.flatten(x)
+        logits = self.linear(x)
+        return torch.nn.functional.softmax(logits, dim = 1)

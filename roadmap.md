@@ -40,19 +40,19 @@ project_moe/
 
 **Owner: Person A**
 
-* [ ] **Implement Experts (`models/experts.py`):**
+* [x] **Implement Experts (`models/experts.py`):**
 * Defines `ExpertLayer` as a distinct "Small CNN" (e.g. `Conv -> ReLU -> Pool`).
 * Each expert is capable of classifying the image into classes (100 classes).
 * Input: Image Batch. Output: Class Logits.
 
 
-* [ ] **Implement Gating (`models/gating.py`):**
+* [x] **Implement Gating (`models/gating.py`):**
 * Defines `GatingNetwork` as a "Tiny CNN" router.
 * Rapidly downsamples the image and outputs Softmax probability weights.
 * Goal: Low cost classification of image "type".
 
 
-* [ ] **Assemble MoE (`models/moe_model.py`):**
+* [x] **Assemble MoE (`models/moe_model.py`):**
 * Implements the "Manager" for Conditional Computation.
 * **Hard Routing Logic:**
     1. Router selects Top-1 expert per image.
