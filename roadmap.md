@@ -41,22 +41,24 @@ project_moe/
 **Owner: Person A**
 
 * [ ] **Implement Experts (`models/experts.py`):**
-* Define a class `ExpertLayer` (e.g., a simple 2-layer MLP with ReLU).
-* Ensure it handles batch inputs correctly.
+* Defines `ExpertLayer` as a distinct "Small CNN" (e.g. `Conv -> ReLU -> Pool`).
+* Each expert is capable of classifying the image into classes (100 classes).
+* Input: Image Batch. Output: Class Logits.
 
 
 * [ ] **Implement Gating (`models/gating.py`):**
-* Create `GatingNetwork` that takes input  and outputs weights .
-
-
-* Implement the logic for Softmax output (probabilities).
+* Defines `GatingNetwork` as a "Tiny CNN" router.
+* Rapidly downsamples the image and outputs Softmax probability weights.
+* Goal: Low cost classification of image "type".
 
 
 * [ ] **Assemble MoE (`models/moe_model.py`):**
-* Combine Experts and Gating.
-* Implement the weighted sum: .
-
-
+* Implements the "Manager" for Conditional Computation.
+* **Hard Routing Logic:**
+    1. Router selects Top-1 expert per image.
+    2. Manager splits the batch.
+    3. Only the selected Expert runs on its assigned images (Saving FLOPs).
+    4. Outputs are recombined.
 * Allow the number of experts () to be a parameter.
 
 
@@ -105,46 +107,29 @@ project_moe/
 
 **Owner: Person A**
 
-* [ ] **Hard Routing Implementation:**
-* Modify `moe_model.py` to support "Top-k" selection (Hard routing).
+* [ ] **Regularization & Load Balancing:**
+    * Add logic to penalize low entropy in gating (prevent collapse to a single expert).
+    * Implement a "Load Balancing" loss to ensure experts are utilized evenly (e.g., Coefficient of Variation).
 
-
-* Ensure gradients can still flow (or use simple masking if strictly following standard Top-k).
-
-
-* [ ] **Regularization:**
-* Add logic to penalize low entropy in gating (to prevent only one expert being used all the time).
-
-* [ ] **Originality Spike (Pick One):**
-    * Implement Gumbel-Softmax for differentiable top-k routing.
-    * OR: Implement a "Load Balancing" loss auxiliary term to force expert usage.
-
-
-
-
+* [ ] **Top-k > 1 Variation:**
+    *   Extend `moe_model.py` to support Top-k selection (e.g. Top-2) where two experts run per image.
+    *   Goal: Analyze the trade-off between Accuracy gain vs Inference Cost increase.
 
 ### Workstream B: Execution & Visualization
 
 **Owner: Person B**
 
 * [ ] **Visualization Tools (`utils/visualization.py`):**
-* Create functions to plot:
-* Expert activation distribution (Histogram).
-* Loss curves per expert.
-
-
-* Heatmaps of (Class vs. Expert) to show specialization.
-
-
-
-
-
+    * Create functions to plot:
+        * Expert activation distribution (Histogram).
+        * Loss curves per expert.
+        * Heatmaps of (Class vs. Expert) to show specialization.
 
 * [ ] **Run Experiments (comparative study):**
-* Run 1: Dense Baseline (Benchmark).
-* Run 2: MoE with Soft Routing.
-* Run 3: MoE with Hard Routing (Top-k).
-* Run 4: MoE with varying  experts (e.g., 4 vs 8 vs 16).
+    * Run 1: Dense Baseline (ResNet-18).
+    * Run 2: **MoE - Conditional Computation (Top-1)** [Main approach].
+    * Run 3: MoE with Top-2 Routing (if implemented).
+    * Run 4: MoE with varying experts (e.g., 4 vs 8).
 
 
 

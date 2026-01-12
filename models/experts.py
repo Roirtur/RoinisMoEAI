@@ -3,14 +3,23 @@ import torch.nn as nn
 
 class ExpertLayer(nn.Module):
     """
-    Define a class ExpertLayer (e.g., a simple 2-layer MLP with ReLU).
-    Ensure it handles batch inputs correctly.
+    Expert Network (The "Specialist"):
+    A self-contained "Small CNN" designed to handle specific visual patterns.
+    
+    Role:
+    - Receive a subset of images from the MoE Manager.
+    - Output classification scores (e.g., 100 classes for CIFAR-100).
+    
+    Recommended Architecture:
+    - A standard small CNN for CIFAR.
+    - Example: Conv2d -> ReLU -> MaxPool -> Conv2d -> ReLU -> MaxPool -> Flatten -> Linear -> Output (100 classes).
     """
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_channels=3, num_classes=100):
         super().__init__()
-        # TODO: Implement the expert architecture (e.g. Linear -> ReLU -> Linear)
+        # TODO: Define the layers for the Small CNN specialist.
+        # Ensure it maps [Batch, Channels, Height, Width] -> [Batch, Num_Classes]
         pass
     
     def forward(self, x):
-        # TODO: Implement forward pass
-        pass
+        # TODO: Implement forward pass through the specialist CNN layers
+        return x
