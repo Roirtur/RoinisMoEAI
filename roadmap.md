@@ -108,8 +108,8 @@ project_moe/
 **Owner: Person A**
 
 * [x] **Regularization & Load Balancing:**
-    * Add logic to penalize low entropy in gating (prevent collapse to a single expert).
-    * Implement a "Load Balancing" loss to ensure experts are utilized evenly (e.g., Coefficient of Variation).
+    * Implemented "Load Balancing" loss (MSE of mean router probabilities vs Uniform distribution) to ensure experts are utilized evenly.
+    * This prevents mode collapse where one expert takes all inputs.
 
 * [ ] **Top-k > 1 Variation:**
     *   Extend `moe_model.py` to support Top-k selection (e.g. Top-2) where two experts run per image.
@@ -119,11 +119,11 @@ project_moe/
 
 **Owner: Person B**
 
-* [ ] **Visualization Tools (`utils/visualization.py`):**
+* [x] **Visualization Tools (`utils/visualization.py`):**
     * Create functions to plot:
-        * Expert activation distribution (Histogram).
-        * Loss curves per expert.
-        * Heatmaps of (Class vs. Expert) to show specialization.
+        * [x] Expert activation distribution (Stacked Area Plot implemented in `plot_expert_utilization`).
+        * [x] Loss curves per expert (Global loss and accuracy curves implemented).
+        * [x] Heatmaps of (Class vs. Expert) to show specialization (`plot_expert_heatmap`).
 
 * [ ] **Run Experiments (comparative study):**
     * Run 1: Dense Baseline.
