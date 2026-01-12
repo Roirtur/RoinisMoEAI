@@ -8,6 +8,7 @@ from tqdm import tqdm
 from utils.data_loader import get_dataloaders
 from models.dense_baseline import get_baseline
 from models.moe_model import MoEModel
+from utils.visualization import HistoryLogger
 
 def train_baseline(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
@@ -15,6 +16,9 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
     """
     print(f"Starting Dense Baseline training on {device}...")
     
+    logger = HistoryLogger()
+    history_path = save_path.replace('.pth', '_history.json')
+
     criterion = nn.CrossEntropyLoss()
     # Standard SGD for ResNet on CIFAR
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
@@ -38,7 +42,7 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
             loss.backward()
             optimizer.step()
             
-            running_loss += loss.item()
+            running_loss += loss.item() * inputs.size(0)
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
@@ -47,23 +51,30 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
             
         train_acc = 100. * correct / total
         
-        val_acc = evaluate(model, val_loader, device)
-        test_acc = evaluate(model, test_loader, device)
-        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Test Acc: {test_acc:.2f}%")
+        val_acc, val_loss = evaluate(model, val_loader, device)
+        test_acc, _ = evaluate(model, test_loader, device)
+        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Val Loss: {val_loss:.4f}, Test Acc: {test_acc:.2f}%")
         
-        # Save model
+        # Log metrics
+        logger.log_epoch(running_loss/total, train_acc, val_loss, val_acc)
+        
+        # Save model and history
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(model.state_dict(), save_path)
+        logger.save(history_path)
             
         scheduler.step()
 
     print(f"Training finished. Final Test Accuracy: {test_acc:.2f}%")
 
-def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save_path):
+def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save_path, aux_weight=5.0):
     """
     Training loop specifically for the Mixture of Experts model.
     """
-    print(f"Starting MoE training on {device}")
+    print(f"Starting MoE training on {device} with aux_weight={aux_weight}")
+    
+    logger = HistoryLogger()
+    history_path = save_path.replace('.pth', '_history.json')
     
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
@@ -75,6 +86,9 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
         correct = 0
         total = 0
         
+        # expert usage for this epoch
+        epoch_expert_counts = torch.zeros(model.num_experts, device=device)
+        
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train MoE]")
         for inputs, targets in pbar:
             inputs, targets = inputs.to(device), targets.to(device)
@@ -83,12 +97,18 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
             outputs, router_probs, aux_loss = model(inputs)
             
-            loss = criterion(outputs, targets) + 1.0 * aux_loss
+            # count expert selections (Hard routing: argmax)
+            with torch.no_grad():
+                selected_experts = torch.argmax(router_probs, dim=1)
+                for i in range(model.num_experts):
+                    epoch_expert_counts[i] += (selected_experts == i).sum()
+            
+            loss = criterion(outputs, targets) + aux_weight * aux_loss
             
             loss.backward()
             optimizer.step()
             
-            running_loss += loss.item()
+            running_loss += loss.item() * inputs.size(0)
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
@@ -97,51 +117,64 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
         train_acc = 100. * correct / total
         
-        val_acc = evaluate_moe(model, val_loader, device)
-        test_acc = evaluate_moe(model, test_loader, device)
-        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Test Acc: {test_acc:.2f}%")
+        val_acc, val_loss = evaluate_moe(model, val_loader, device, aux_weight)
+        test_acc, _ = evaluate_moe(model, test_loader, device, aux_weight)
+        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Val Loss: {val_loss:.4f}, Test Acc: {test_acc:.2f}%")
         
+        logger.log_epoch(running_loss/total, train_acc, val_loss, val_acc, expert_counts=epoch_expert_counts)
+
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         torch.save(model.state_dict(), save_path)
+        logger.save(history_path)
             
         scheduler.step()
 
     print(f"MoE Training finished. Final Test Accuracy: {test_acc:.2f}%")
 
 
-def evaluate_moe(model, dataloader, device):
+def evaluate_moe(model, dataloader, device, aux_weight=1.0):
     """
     Evaluation loop specifically for MoE (handling tuple output).
     """
     model.eval()
+    criterion = nn.CrossEntropyLoss()
+    running_loss = 0.0
     correct = 0
     total = 0
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs, _, _ = model(inputs) # Ignore router_probs and aux_loss
+            outputs, _, aux_loss = model(inputs)
+            loss = criterion(outputs, targets) + aux_weight * aux_loss
+            running_loss += loss.item() * inputs.size(0)
+
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
     
-    return 100. * correct / total
+    return 100. * correct / total, running_loss / total
 
 def evaluate(model, dataloader, device):
     """
     Generic evaluation loop.
     """
     model.eval()
+    criterion = nn.CrossEntropyLoss()
+    running_loss = 0.0
     correct = 0
     total = 0
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = model(inputs)
+            loss = criterion(outputs, targets)
+            running_loss += loss.item() * inputs.size(0)
+
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
     
-    return 100. * correct / total
+    return 100. * correct / total, running_loss / total
 
 def main():
     parser = argparse.ArgumentParser(description='Train MoE or Dense Baseline on CIFAR-100')
@@ -152,6 +185,8 @@ def main():
     parser.add_argument('--lr', type=float, default=0.1, help='Learning rate')
     parser.add_argument('--width_multiplier', type=float, default=1.0, 
                         help='Width multiplier for Dense Baseline (to match MoE parameters/FLOPs)')
+    parser.add_argument('--aux_weight', type=float, default=5.0, 
+                        help='Auxiliary loss weight for load balancing')
     parser.add_argument('--save_dir', type=str, default='./checkpoints', help='Directory to save models')
     
     args = parser.parse_args()
@@ -178,7 +213,7 @@ def main():
         
         save_path = os.path.join(args.save_dir, "moe_model.pth")
         
-        train_moe(model, train_loader, val_loader, test_loader, args.epochs, device, save_path)
+        train_moe(model, train_loader, val_loader, test_loader, args.epochs, device, save_path, aux_weight=args.aux_weight)
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 import torch.nn.functional as F
 class GatingNetwork(nn.Module):
     """
@@ -34,5 +35,10 @@ class GatingNetwork(nn.Module):
         
         x = self.flatten(x)
         logits = self.linear(x)
+        
+        # noise for exploration during training for better uniformity
+        if self.training:
+            noise = torch.randn_like(logits) * 0.1
+            logits = logits + noise
         
         return F.softmax(logits, dim=1)
