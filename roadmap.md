@@ -111,7 +111,7 @@ project_moe/
     * Implemented "Load Balancing" loss (MSE of mean router probabilities vs Uniform distribution) to ensure experts are utilized evenly.
     * This prevents mode collapse where one expert takes all inputs.
 
-* [ ] **Top-k > 1 Variation:**
+* [x] **Top-k > 1 Variation:**
     *   Extend `moe_model.py` to support Top-k selection (e.g. Top-2) where two experts run per image.
     *   Goal: Analyze the trade-off between Accuracy gain vs Inference Cost increase.
 

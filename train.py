@@ -71,7 +71,7 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
     """
     Training loop specifically for the Mixture of Experts model.
     """
-    print(f"Starting MoE training on {device} with aux_weight={aux_weight}")
+    print(f"Starting MoE training on {device} with aux_weight={aux_weight}, Top-K={model.top_k}")
     
     logger = HistoryLogger()
     history_path = save_path.replace('.pth', '_history.json')
@@ -89,7 +89,7 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
         # expert usage for this epoch
         epoch_expert_counts = torch.zeros(model.num_experts, device=device)
         
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train MoE]")
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs}")
         for inputs, targets in pbar:
             inputs, targets = inputs.to(device), targets.to(device)
             
@@ -97,12 +97,16 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
             outputs, router_probs, aux_loss = model(inputs)
             
-            # count expert selections (Hard routing: argmax)
+            # Count expert selections for logging
             with torch.no_grad():
-                selected_experts = torch.argmax(router_probs, dim=1)
+                # indices of the top-k experts selected
+                _, topk_indices = torch.topk(router_probs, k=model.top_k, dim=1)
+                
+                flat_indices = topk_indices.view(-1)
+                
                 for i in range(model.num_experts):
-                    epoch_expert_counts[i] += (selected_experts == i).sum()
-            
+                    epoch_expert_counts[i] += (flat_indices == i).sum()
+
             loss = criterion(outputs, targets) + aux_weight * aux_loss
             
             loss.backward()
@@ -117,9 +121,16 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
             
         train_acc = 100. * correct / total
         
-        val_acc, val_loss = evaluate_moe(model, val_loader, device, aux_weight)
-        test_acc, _ = evaluate_moe(model, test_loader, device, aux_weight)
-        print(f"Epoch {epoch+1}: Train Acc: {train_acc:.2f}%, Val Acc: {val_acc:.2f}%, Val Loss: {val_loss:.4f}, Test Acc: {test_acc:.2f}%")
+        val_acc, val_loss = evaluate_moe(model, val_loader, device)
+        test_acc, _ = evaluate_moe(model, test_loader, device)
+        
+        total_selections = total * model.top_k
+        
+        # percentage of total capacity used by each expert
+        usage_str = " | ".join([f"E{i}:{(c/total_selections)*100:.1f}%" for i, c in enumerate(epoch_expert_counts)])
+        
+        print(f"Epoch {epoch+1}: Train: {train_acc:.2f}% | Val: {val_acc:.2f}% | Test: {test_acc:.2f}%")
+        print(f"   Usage: [{usage_str}]")
         
         logger.log_epoch(running_loss/total, train_acc, val_loss, val_acc, expert_counts=epoch_expert_counts)
 
@@ -130,7 +141,6 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
         scheduler.step()
 
     print(f"MoE Training finished. Final Test Accuracy: {test_acc:.2f}%")
-
 
 def evaluate_moe(model, dataloader, device, aux_weight=1.0):
     """
