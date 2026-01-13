@@ -167,6 +167,140 @@ def plot_expert_heatmap(model, dataloader, device, save_path):
     plt.savefig(save_path)
     plt.close()
 
+def plot_multimodel_learning_curves(histories_dict, save_dir):
+    """
+    Plots comparison of multiple models (Validation Accuracy & Loss)
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    
+    markers = ['o', '^', 'x', 's', 'd', 'v', '*', 'p']
+    linestyles = ['-', '--', '-.', ':']
+    
+    # Determine max epochs
+    max_epochs = 0
+    for h in histories_dict.values():
+        if hasattr(h, 'history'): h = h.history
+        if len(h['val_acc']) > max_epochs:
+            max_epochs = len(h['val_acc'])
+
+    # Accuracy Plot
+    plt.figure(figsize=(10, 5))
+    for i, (name, history) in enumerate(histories_dict.items()):
+        if hasattr(history, 'history'): history = history.history
+        epochs = range(1, len(history['val_acc']) + 1)
+        
+        style_idx = i % len(linestyles)
+        marker_idx = i % len(markers)
+        
+        plt.plot(epochs, history['val_acc'], label=name, 
+                 linestyle=linestyles[style_idx], marker=markers[marker_idx], linewidth=1.5, alpha=0.8)
+
+    plt.title('Validation Accuracy Comparison')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+    if max_epochs > 0:
+        plt.xlim(1, max_epochs)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'multimodel_comparison_accuracy.png'))
+    plt.close()
+
+    # Loss Plot
+    plt.figure(figsize=(10, 5))
+    for i, (name, history) in enumerate(histories_dict.items()):
+        if hasattr(history, 'history'): history = history.history
+        epochs = range(1, len(history['val_loss']) + 1)
+        
+        style_idx = i % len(linestyles)
+        marker_idx = i % len(markers)
+        
+        plt.plot(epochs, history['val_loss'], label=name, 
+                 linestyle=linestyles[style_idx], marker=markers[marker_idx], linewidth=1.5, alpha=0.8)
+
+    plt.title('Validation Loss Comparison')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    if max_epochs > 0:
+        plt.xlim(1, max_epochs)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, 'multimodel_comparison_loss.png'))
+    plt.close()
+
+def plot_expert_loss_history(history, save_dir, title_suffix=""):
+    """
+    Plots individual loss curves for each expert
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    if hasattr(history, 'history'): history = history.history
+    
+    if 'expert_loss' not in history or not history['expert_loss']:
+        print(f"No expert loss data found for {title_suffix}.")
+        return
+
+    expert_losses = np.array(history['expert_loss']) # (Epochs, Num_Experts)
+    epochs = range(1, expert_losses.shape[0] + 1)
+    num_experts = expert_losses.shape[1]
+    
+    plt.figure(figsize=(10, 6))
+    for i in range(num_experts):
+        plt.plot(epochs, expert_losses[:, i], label=f'Expert {i}')
+        
+    plt.title(f'Expert Loss Evolution {title_suffix}')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    filename = f'expert_loss_evolution{title_suffix.replace(" ", "_").lower()}.png'
+    plt.savefig(os.path.join(save_dir, filename))
+    plt.close()
+
+def plot_expert_heatmap_from_history(history, save_dir, title_suffix=""):
+    """
+    Plots Expert Specialization Heatmap from the last epoch of training history.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    if hasattr(history, 'history'): history = history.history
+
+    if 'expert_class_distribution' not in history or not history['expert_class_distribution']:
+        print(f"No expert class distribution data found for {title_suffix}.")
+        return
+        
+    # last epoch distribution
+    final_dist = np.array(history['expert_class_distribution'][-1])  # (Num_Experts, Num_Classes)
+    
+    col_sums = final_dist.sum(axis=0, keepdims=True)
+    col_sums[col_sums == 0] = 1.0
+    heatmap_norm = final_dist / col_sums
+    
+    plt.figure(figsize=(15, 8))
+    sns.heatmap(heatmap_norm, cmap="viridis", cbar_kws={'label': 'Probability'})
+    plt.title(f'Expert Specialization by Class (Last Epoch) {title_suffix}')
+    plt.xlabel('CIFAR-10 Classes')
+    plt.ylabel('Expert ID')
+    plt.tight_layout()
+    
+    filename = f'expert_specialization_heatmap{title_suffix.replace(" ", "_").lower()}.png'
+    plt.savefig(os.path.join(save_dir, filename))
+    plt.close()
+
+def count_total_params(model):
+    """Counts total trainable parameters."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+def count_active_params_moe(model):
+    """
+    Counts active parameters for a forward pass in MoE.
+    Active = Router + Experts * k
+    """
+    router_params = sum(p.numel() for p in model.router.parameters())
+    expert_params = sum(p.numel() for p in model.experts[0].parameters())
+    return router_params + (expert_params * model.top_k)
+
 def compare_params_vs_performance(models_data, save_path):
     """
     Scatter plot comparing Model Size (Parameters/FLOPs) vs Accuracy.
@@ -186,6 +320,71 @@ def compare_params_vs_performance(models_data, save_path):
     plt.legend()
     plt.tight_layout()
     plt.savefig(save_path)
+    plt.close()
+
+def plot_expert_utilization_histogram(history, save_dir, title_suffix=""):
+    """
+    Plots a bar chart showing the % of data processed by each expert in the last epoch.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    if hasattr(history, 'history'): history = history.history
+
+    if not history.get('expert_usage'):
+        print(f"No expert usage data found for {title_suffix}.")
+        return
+
+    # last epoch usage
+    last_epoch_counts = np.array(history['expert_usage'][-1])
+    total_counts = last_epoch_counts.sum()
+    if total_counts == 0: total_counts = 1
+    percentages = (last_epoch_counts / total_counts) * 100
+    
+    num_experts = len(last_epoch_counts)
+    
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x=[f'E{i}' for i in range(num_experts)], y=percentages, hue=[f'E{i}' for i in range(num_experts)], legend=False, palette="viridis")
+    
+    plt.title(f'Expert Utilization (Last Epoch) {title_suffix}')
+    plt.ylabel('Data Processed (%)')
+    plt.ylim(0, 100)
+    for i, v in enumerate(percentages):
+        plt.text(i, v + 1, f"{v:.1f}%", ha='center')
+        
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    
+    filename = f'expert_utilization_histogram{title_suffix.replace(" ", "_").lower()}.png'
+    plt.savefig(os.path.join(save_dir, filename))
+    plt.close()
+
+def plot_expert_counts_evolution(history, save_dir, title_suffix=""):
+    """
+    Plots the raw number of samples processed by each expert over epochs.
+    """
+    os.makedirs(save_dir, exist_ok=True)
+    if hasattr(history, 'history'): history = history.history
+
+    if not history.get('expert_usage'):
+        print(f"No expert usage data found for {title_suffix}.")
+        return
+
+    usage_data = np.array(history['expert_usage']) # (Epochs, Num_Experts)
+    epochs = range(1, usage_data.shape[0] + 1)
+    num_experts = usage_data.shape[1]
+    
+    plt.figure(figsize=(10, 6))
+    for i in range(num_experts):
+        plt.plot(epochs, usage_data[:, i], label=f'Expert {i}', marker='.', markersize=8)
+        
+    plt.title(f'Expert Sample Counts Evolution {title_suffix}')
+    plt.xlabel('Epochs')
+    plt.ylabel('Number of Samples')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    
+    filename = f'expert_counts_evolution{title_suffix.replace(" ", "_").lower()}.png'
+    plt.savefig(os.path.join(save_dir, filename))
     plt.close()
 
 def get_expert_class_distribution(model, dataloader, device):
