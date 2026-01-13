@@ -126,7 +126,7 @@ project_moe/
         * [x] Loss curves per expert (Global loss and accuracy curves implemented).
         * [x] Heatmaps of (Class vs. Expert) to show specialization (`plot_expert_heatmap`).
 
-* [ ] **Run Experiments (comparative study):**
+* [x] **Run Experiments (comparative study):**
     * Run 1: Dense Baseline.
     * Run 2: **MoE - Conditional Computation (Top-1)** [Main approach].
     * Run 3: MoE with Top-2 Routing (if implemented).
@@ -147,7 +147,7 @@ project_moe/
   * *Update:* Now tracked automatically in training history (Expert vs Class distribution matrix).
 
 
-* [ ] **Performance vs. Cost:** specific analysis on inference cost vs accuracy.
+* [x] **Performance vs. Cost:** specific analysis on inference cost vs accuracy.
 
 Report Writing (4-6 Pages) 
 
