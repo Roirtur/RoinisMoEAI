@@ -143,29 +143,23 @@ def plot_expert_heatmap(model, dataloader, device, save_path):
     
     heatmap = np.zeros((num_experts, num_classes))
     
-    print("Generating Heatmap...")
     with torch.no_grad():
         for inputs, targets in dataloader:
             inputs, targets = inputs.to(device), targets.to(device)
-            # Forward pass: returns (output, probs, aux_loss) or (output, probs)
-            out = model(inputs)
-            if len(out) == 3:
-                _, router_probs, _ = out
-            else:
-                _, router_probs = out
-                
-            best_indices = torch.argmax(router_probs, dim=1)
+            _, router_probs, _ = model(inputs)
             
-            # Map batch
-            best_indices = best_indices.cpu().numpy()
+            _, topk_indices = torch.topk(router_probs, k=model.top_k, dim=1) # (Batch, k)
+            
+            topk_indices = topk_indices.cpu().numpy()
             targets = targets.cpu().numpy()
             
             for i in range(len(targets)):
-                expert = best_indices[i]
                 cls = targets[i]
-                heatmap[expert, cls] += 1
+                for k in range(model.top_k):
+                    expert = topk_indices[i, k]
+                    heatmap[expert, cls] += 1
                 
-    # Normalize per class
+    # normalize per class
     col_sums = heatmap.sum(axis=0, keepdims=True)
     col_sums[col_sums == 0] = 1
     heatmap_norm = heatmap / col_sums
