@@ -1,2 +1,2 @@
 from .data_loader import get_dataloaders
-from .visualization import plot_expert_activation_distribution, plot_loss_per_expert, plot_expert_specialization_heatmap
+from .visualization import HistoryLogger, get_expert_class_distribution

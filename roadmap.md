@@ -34,29 +34,31 @@ project_moe/
 
 * [x] Initialize Git repository.
 * [x] Create the file structure listed above.
-* [x] Select Dataset: **CIFAR-100**.
+* [x] Select Dataset: **CIFAR-10**.
 
 ### Workstream A: Model Architecture
 
 **Owner: Person A**
 
-* [ ] **Implement Experts (`models/experts.py`):**
-* Define a class `ExpertLayer` (e.g., a simple 2-layer MLP with ReLU).
-* Ensure it handles batch inputs correctly.
+* [x] **Implement Experts (`models/experts.py`):**
+* Defines `ExpertLayer` as a distinct "Small CNN" (e.g. `Conv -> ReLU -> Pool`).
+* Each expert is capable of classifying the image into classes (100 classes).
+* Input: Image Batch. Output: Class Logits.
 
 
-* [ ] **Implement Gating (`models/gating.py`):**
-* Create `GatingNetwork` that takes input  and outputs weights .
+* [x] **Implement Gating (`models/gating.py`):**
+* Defines `GatingNetwork` as a "Tiny CNN" router.
+* Rapidly downsamples the image and outputs Softmax probability weights.
+* Goal: Low cost classification of image "type".
 
 
-* Implement the logic for Softmax output (probabilities).
-
-
-* [ ] **Assemble MoE (`models/moe_model.py`):**
-* Combine Experts and Gating.
-* Implement the weighted sum: .
-
-
+* [x] **Assemble MoE (`models/moe_model.py`):**
+* Implements the "Manager" for Conditional Computation.
+* **Hard Routing Logic:**
+    1. Router selects Top-1 expert per image.
+    2. Manager splits the batch.
+    3. Only the selected Expert runs on its assigned images (Saving FLOPs).
+    4. Outputs are recombined.
 * Allow the number of experts () to be a parameter.
 
 
@@ -73,8 +75,8 @@ project_moe/
 
 
 * [x] **Dense Baseline (`models/dense_baseline.py`):**
-* Implement a **ResNet-18** style architecture.
-* Created `DenseResNet` class with a `width_multiplier` argument.
+* Implemented a **SimpleBaseline** style architecture (matching ExpertLayer structure).
+* Created `SimpleBaseline` class with a `width_multiplier` argument.
 * This allows creating both:
     *   *Iso-FLOPs Baseline:* Reduce width ($k < 1.0$) to match active experts.
     *   *Iso-Params Baseline:* Increase width ($k \ge 1.0$) to match total MoE storage.
@@ -88,7 +90,8 @@ project_moe/
 * Added `train_moe` placeholder for future implementation.
 * Added `main` with `argparse` to select model type and save path.
 * Supports saving/loading logic to avoid retraining.
-* *Note:* Ensure you can mask loss based on gating decisions to track "Loss per Expert".
+* [x] Added logic to track "Loss per Expert" (masking loss based on gating decisions).
+* [x] Added logic to track "Data Distribution per Expert" (Expert vs Class heatmap) every epoch.
 * 
 *Extension:* Add logic to track "Expert Usage" (frequency of selection) during training.
 
@@ -105,46 +108,29 @@ project_moe/
 
 **Owner: Person A**
 
-* [ ] **Hard Routing Implementation:**
-* Modify `moe_model.py` to support "Top-k" selection (Hard routing).
+* [x] **Regularization & Load Balancing:**
+    * Implemented "Load Balancing" loss (MSE of mean router probabilities vs Uniform distribution) to ensure experts are utilized evenly.
+    * This prevents mode collapse where one expert takes all inputs.
 
-
-* Ensure gradients can still flow (or use simple masking if strictly following standard Top-k).
-
-
-* [ ] **Regularization:**
-* Add logic to penalize low entropy in gating (to prevent only one expert being used all the time).
-
-* [ ] **Originality Spike (Pick One):**
-    * Implement Gumbel-Softmax for differentiable top-k routing.
-    * OR: Implement a "Load Balancing" loss auxiliary term to force expert usage.
-
-
-
-
+* [x] **Top-k > 1 Variation:**
+    *   Extend `moe_model.py` to support Top-k selection (e.g. Top-2) where two experts run per image.
+    *   Goal: Analyze the trade-off between Accuracy gain vs Inference Cost increase.
 
 ### Workstream B: Execution & Visualization
 
 **Owner: Person B**
 
-* [ ] **Visualization Tools (`utils/visualization.py`):**
-* Create functions to plot:
-* Expert activation distribution (Histogram).
-* Loss curves per expert.
-
-
-* Heatmaps of (Class vs. Expert) to show specialization.
-
-
-
-
-
+* [x] **Visualization Tools (`utils/visualization.py`):**
+    * Create functions to plot:
+        * [x] Expert activation distribution (Stacked Area Plot implemented in `plot_expert_utilization`).
+        * [x] Loss curves per expert (Global loss and accuracy curves implemented).
+        * [x] Heatmaps of (Class vs. Expert) to show specialization (`plot_expert_heatmap`).
 
 * [ ] **Run Experiments (comparative study):**
-* Run 1: Dense Baseline (Benchmark).
-* Run 2: MoE with Soft Routing.
-* Run 3: MoE with Hard Routing (Top-k).
-* Run 4: MoE with varying  experts (e.g., 4 vs 8 vs 16).
+    * Run 1: Dense Baseline.
+    * Run 2: **MoE - Conditional Computation (Top-1)** [Main approach].
+    * Run 3: MoE with Top-2 Routing (if implemented).
+    * Run 4: MoE with varying experts (e.g., 4 vs 8).
 
 
 
@@ -157,7 +143,8 @@ project_moe/
 
 ### Analysis Tasks (Joint)
 
-* [ ] **Specialization Analysis:** Check if specific experts handle specific classes (e.g., Expert 1 handles "Shoes", Expert 2 handles "Shirts").
+* [x] **Specialization Analysis:** Check if specific experts handle specific classes (e.g., Expert 1 handles "Shoes", Expert 2 handles "Shirts").
+  * *Update:* Now tracked automatically in training history (Expert vs Class distribution matrix).
 
 
 * [ ] **Performance vs. Cost:** specific analysis on inference cost vs accuracy.

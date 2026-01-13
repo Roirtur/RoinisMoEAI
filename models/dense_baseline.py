@@ -1,85 +1,68 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class BasicBlock(nn.Module):
+class SimpleBaseline(nn.Module):
     """
-    Standard ResNet Basic Block:
-    Conv3x3 -> BN -> ReLU -> Conv3x3 -> BN -> Add(Residual) -> ReLU
+    A Simple CNN Baseline that matches the architecture of the ExpertLayer.
+    Scalable via width_multiplier to match parameter counts to test larger models.
     """
-    expansion = 1
+    def __init__(self, input_shape=(3, 32, 32), num_classes=10, width_multiplier=1.0):
+        super(SimpleBaseline, self).__init__()
+        
+        self.planes1 = int(32 * width_multiplier)
+        self.planes2 = int(64 * width_multiplier)
+        self.planes3 = int(128 * width_multiplier)
+        self.hidden_size = int(512 * width_multiplier)
+        
+        # Layer 1
+        self.conv1 = nn.Conv2d(input_shape[0], self.planes1, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(self.planes1)
+        self.pool1 = nn.MaxPool2d(2, 2) # 32x32 -> 16x16
+        
+        # Layer 2
+        self.conv2 = nn.Conv2d(self.planes1, self.planes2, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(self.planes2)
+        self.pool2 = nn.MaxPool2d(2, 2) # 16x16 -> 8x8
 
-    def __init__(self, in_planes, planes, stride=1):
-        super(BasicBlock, self).__init__()
-        self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-
-        self.shortcut = nn.Sequential()
-        if stride != 1 or in_planes != self.expansion*planes:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
-            )
+        # Layer 3
+        self.conv3 = nn.Conv2d(self.planes2, self.planes3, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(self.planes3)
+        self.pool3 = nn.MaxPool2d(2, 2) # 8x8 -> 4x4
+        
+        self.flatten = nn.Flatten()
+        
+        self.flat_size = self.planes3 * 4 * 4
+        
+        self.fc1 = nn.Linear(self.flat_size, self.hidden_size)
+        self.fc2 = nn.Linear(self.hidden_size, num_classes)
+        
+        self.relu = nn.ReLU()
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out += self.shortcut(x)
-        out = F.relu(out)
-        return out
-
-class DenseResNet(nn.Module):
-    """
-    A ResNet-based Dense Baseline.
-    Based on ResNet-18 architecture but with adjustable width.
-    
-    To achieve Iso-Param or Iso-FLOP comparisons with the MoE:
-    - Adjust `width_multiplier` (k) to scale the number of filters.
-    - k < 1.0 -> Lower capacity (Iso-FLOP baseline potentially).
-    - k > 1.0 -> Higher capacity (Iso-Param baseline potentially).
-    """
-    def __init__(self, input_shape=(3, 32, 32), num_classes=100, width_multiplier=1.0):
-        super(DenseResNet, self).__init__()
-        self.in_planes = int(64 * width_multiplier)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.pool1(x)
         
-        # Initial convolution
-        self.conv1 = nn.Conv2d(3, self.in_planes, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(self.in_planes)
-        
-        # ResNet Layers (Standard ResNet18 layout: 2 blocks per layer)
-        # We scale the planes by width_multiplier
-        self.layer1 = self._make_layer(BasicBlock, int(64 * width_multiplier), 2, stride=1)
-        self.layer2 = self._make_layer(BasicBlock, int(128 * width_multiplier), 2, stride=2)
-        self.layer3 = self._make_layer(BasicBlock, int(256 * width_multiplier), 2, stride=2)
-        self.layer4 = self._make_layer(BasicBlock, int(512 * width_multiplier), 2, stride=2)
-        
-        self.linear = nn.Linear(int(512 * width_multiplier) * BasicBlock.expansion, num_classes)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.pool2(x)
 
-    def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
-        layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
-            self.in_planes = planes * block.expansion
-        return nn.Sequential(*layers)
-
-    def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
-        return out
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.pool3(x)
+        
+        x = self.flatten(x)
+        x = self.relu(self.fc1(x))
+        x = self.fc2(x)
+        
+        return x
 
     def count_parameters(self):
-        """Returns the total number of trainable parameters."""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-# Helper function to match the prompt's request for flexibility
-def get_baseline(width_multiplier=1.0):
-    return DenseResNet(width_multiplier=width_multiplier)
+def get_baseline(input_shape, num_classes, width_multiplier=1.0):
+    return SimpleBaseline(input_shape=input_shape, num_classes=num_classes, width_multiplier=width_multiplier)
+

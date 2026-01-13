@@ -1,16 +1,54 @@
-import torch
 import torch.nn as nn
 
 class ExpertLayer(nn.Module):
     """
-    Define a class ExpertLayer (e.g., a simple 2-layer MLP with ReLU).
-    Ensure it handles batch inputs correctly.
+    The Expert: Specialized CNN.
+    Input: (Batch_Subset, 3, 32, 32)
+    Output: (Batch_Subset, num_classes)
     """
-    def __init__(self, input_dim, hidden_dim, output_dim):
+    def __init__(self, input_channels=3, num_classes=10):
         super().__init__()
-        # TODO: Implement the expert architecture (e.g. Linear -> ReLU -> Linear)
-        pass
-    
+        
+        # Layer 1
+        self.conv1 = nn.Conv2d(input_channels, 32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
+        self.relu = nn.ReLU()
+        self.pool = nn.MaxPool2d(2, 2) # 32x32 -> 16x16
+        
+        # Layer 2
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
+        self.pool2 = nn.MaxPool2d(2, 2) # 16x16 -> 8x8
+        
+        # Layer 3
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(2, 2) # 8x8 -> 4x4
+
+        self.flatten = nn.Flatten()
+        
+        # 128 * 4 * 4 = 2048
+        self.fc1 = nn.Linear(2048, 512)
+        self.fc2 = nn.Linear(512, num_classes)
+
     def forward(self, x):
-        # TODO: Implement forward pass
-        pass
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.pool(x)
+        
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.pool2(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.pool3(x)
+        
+        x = self.flatten(x)
+        x = self.relu(self.fc1(x))
+        x = self.fc2(x)
+        
+        return x
