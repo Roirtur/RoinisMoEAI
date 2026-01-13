@@ -19,11 +19,16 @@ class ExpertLayer(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
         self.pool2 = nn.MaxPool2d(2, 2) # 16x16 -> 8x8
+        
+        # Layer 3
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
+        self.pool3 = nn.MaxPool2d(2, 2) # 8x8 -> 4x4
 
         self.flatten = nn.Flatten()
         
-        # 64 * 8 * 8 = 4096
-        self.fc1 = nn.Linear(4096, 512)
+        # 128 * 4 * 4 = 2048
+        self.fc1 = nn.Linear(2048, 512)
         self.fc2 = nn.Linear(512, num_classes)
 
     def forward(self, x):
@@ -36,6 +41,11 @@ class ExpertLayer(nn.Module):
         x = self.bn2(x)
         x = self.relu(x)
         x = self.pool2(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.pool3(x)
         
         x = self.flatten(x)
         x = self.relu(self.fc1(x))

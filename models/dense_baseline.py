@@ -11,6 +11,7 @@ class SimpleBaseline(nn.Module):
         
         self.planes1 = int(32 * width_multiplier)
         self.planes2 = int(64 * width_multiplier)
+        self.planes3 = int(128 * width_multiplier)
         self.hidden_size = int(512 * width_multiplier)
         
         # Layer 1
@@ -22,10 +23,15 @@ class SimpleBaseline(nn.Module):
         self.conv2 = nn.Conv2d(self.planes1, self.planes2, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm2d(self.planes2)
         self.pool2 = nn.MaxPool2d(2, 2) # 16x16 -> 8x8
+
+        # Layer 3
+        self.conv3 = nn.Conv2d(self.planes2, self.planes3, kernel_size=3, padding=1)
+        self.bn3 = nn.BatchNorm2d(self.planes3)
+        self.pool3 = nn.MaxPool2d(2, 2) # 8x8 -> 4x4
         
         self.flatten = nn.Flatten()
         
-        self.flat_size = self.planes2 * 8 * 8
+        self.flat_size = self.planes3 * 4 * 4
         
         self.fc1 = nn.Linear(self.flat_size, self.hidden_size)
         self.fc2 = nn.Linear(self.hidden_size, num_classes)
@@ -42,6 +48,11 @@ class SimpleBaseline(nn.Module):
         x = self.bn2(x)
         x = self.relu(x)
         x = self.pool2(x)
+
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.pool3(x)
         
         x = self.flatten(x)
         x = self.relu(self.fc1(x))
