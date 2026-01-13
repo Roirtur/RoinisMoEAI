@@ -1,4 +1,3 @@
-import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split
 
@@ -33,16 +32,14 @@ def get_dataloaders(batch_size=128, data_dir='./data', val_split=0.1, num_worker
     num_classes = 10
     img_size = (3, 32, 32)
     
-    # Load Full Training Set
     full_train_set = datasets.CIFAR10(root=data_dir, train=True, download=True, transform=train_transform)
     test_set = datasets.CIFAR10(root=data_dir, train=False, download=True, transform=test_transform)
 
-    # Split Train into Train/Val
     val_size = int(len(full_train_set) * val_split)
     train_size = len(full_train_set) - val_size
     train_set, val_set = random_split(full_train_set, [train_size, val_size])
 
-    # Note: We apply the same transform to val set as train set here (with augmentation).
+    # note: same transform to val set as train set here to simplify the code
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)

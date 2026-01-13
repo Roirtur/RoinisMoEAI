@@ -4,16 +4,15 @@ import torch.optim as optim
 import argparse
 import os
 from tqdm import tqdm
-from utils.data_loader import get_dataloaders
-from models.dense_baseline import get_baseline
-from models.moe_model import MoEModel
-from utils import HistoryLogger, get_expert_class_distribution
+from models import get_baseline
+from models import MoEModel
+from utils import HistoryLogger, get_dataloaders, get_expert_class_distribution
 
 def train_baseline(model, train_loader, val_loader, test_loader, epochs, device, save_path):
     """
-    Training loop specifically for the Dense Baseline model.
+    Training loop specifically for the Baseline model.
     """
-    print(f"Starting Dense Baseline training on {device}...")
+    print(f"Starting Baseline training on {device}...")
     
     logger = HistoryLogger()
     history_path = save_path.replace('.pth', '_history.json')
@@ -22,8 +21,6 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
     # Standard SGD for ResNet on CIFAR
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
-
-    best_acc = 0.0
     
     for epoch in range(epochs):
         model.train()
@@ -68,7 +65,7 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
 
 def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save_path, aux_weight=5.0):
     """
-    Training loop specifically for the Mixture of Experts model.
+    Training loop specifically for the MoE
     """
     print(f"Starting MoE training on {device} with aux_weight={aux_weight}, Top-K={model.top_k}")
     
@@ -171,7 +168,7 @@ def train_moe(model, train_loader, val_loader, test_loader, epochs, device, save
 
 def evaluate_moe(model, dataloader, device, aux_weight=1.0):
     """
-    Evaluation loop specifically for MoE (handling tuple output).
+    Evaluation loop specifically for MoE
     """
     model.eval()
     criterion = nn.CrossEntropyLoss()
@@ -193,7 +190,7 @@ def evaluate_moe(model, dataloader, device, aux_weight=1.0):
 
 def evaluate(model, dataloader, device):
     """
-    Generic evaluation loop.
+    Generic evaluation loop
     """
     model.eval()
     criterion = nn.CrossEntropyLoss()
@@ -230,7 +227,6 @@ def main():
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Load Data
     train_loader, val_loader, test_loader, num_classes, img_size = get_dataloaders(batch_size=args.batch_size)
     
     if args.model_type == 'baseline':
@@ -238,7 +234,6 @@ def main():
         model = get_baseline(input_shape=img_size, num_classes=num_classes, width_multiplier=args.width_multiplier)
         model = model.to(device)
         
-        # Define save path based on config
         save_name = f"baseline_w{args.width_multiplier}.pth"
         save_path = os.path.join(args.save_dir, save_name)
         

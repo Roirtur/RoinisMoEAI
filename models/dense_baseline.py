@@ -4,13 +4,7 @@ import torch.nn.functional as F
 class SimpleBaseline(nn.Module):
     """
     A Simple CNN Baseline that matches the architecture of the ExpertLayer.
-    Scalable via width_multiplier to match parameter counts.
-    
-    Architecture:
-    Conv1 -> BN -> ReLU -> MaxPool
-    Conv2 -> BN -> ReLU -> MaxPool
-    Linear -> ReLU
-    Linear -> Output
+    Scalable via width_multiplier to match parameter counts to test larger models.
     """
     def __init__(self, input_shape=(3, 32, 32), num_classes=10, width_multiplier=1.0):
         super(SimpleBaseline, self).__init__()

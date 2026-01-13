@@ -50,12 +50,9 @@ class HistoryLogger:
 def plot_learning_curves(history_baseline, history_moe, save_dir):
     """
     Plots comparison of Baseline vs MoE.
-    history_baseline: dict or loaded json
-    history_moe: dict or loaded json
     """
     os.makedirs(save_dir, exist_ok=True)
     
-    # Ensure we handle both plain dicts and HistoryLogger objects
     if hasattr(history_baseline, 'history'):
         history_baseline = history_baseline.history
     if hasattr(history_moe, 'history'):
@@ -64,7 +61,7 @@ def plot_learning_curves(history_baseline, history_moe, save_dir):
     epochs_moe = range(1, len(history_moe['train_acc']) + 1)
     epochs_base = range(1, len(history_baseline['train_acc']) + 1)
     
-    # Plot Accuracy
+    # Accuracy
     plt.figure(figsize=(10, 5))
     plt.plot(epochs_base, history_baseline['val_acc'], label='Baseline (Val)', linestyle='--')
     plt.plot(epochs_moe, history_moe['val_acc'], label='MoE (Val)', linewidth=2)
@@ -78,7 +75,7 @@ def plot_learning_curves(history_baseline, history_moe, save_dir):
     plt.savefig(os.path.join(save_dir, 'comparison_accuracy.png'))
     plt.close()
     
-    # Plot Loss
+    # Loss
     plt.figure(figsize=(10, 5))
     plt.plot(epochs_base, history_baseline['val_loss'], label='Baseline (Val)', linestyle='--')
     plt.plot(epochs_moe, history_moe['val_loss'], label='MoE (Val)', linewidth=2)
@@ -106,19 +103,16 @@ def plot_expert_utilization(history_moe, save_dir):
         print("No expert usage data found in history.")
         return
 
-    usage_data = np.array(history_moe['expert_usage']) # Shape: [Epochs, Num_Experts]
+    usage_data = np.array(history_moe['expert_usage']) # shape: [Epochs, Num_Experts]
     epochs = range(1, usage_data.shape[0] + 1)
     num_experts = usage_data.shape[1]
     
-    # Normalize to percentages
     row_sums = usage_data.sum(axis=1, keepdims=True)
-    # Avoid division by zero
     row_sums[row_sums == 0] = 1
     usage_pct = (usage_data / row_sums) * 100
     
     plt.figure(figsize=(10, 6))
     
-    # Stacked Area Plot
     pal = sns.color_palette("tab10", num_experts)
     plt.stackplot(epochs, usage_pct.T, labels=[f'Expert {i}' for i in range(num_experts)], colors=pal, alpha=0.8)
     
@@ -133,7 +127,7 @@ def plot_expert_utilization(history_moe, save_dir):
 def plot_expert_heatmap(model, dataloader, device, save_path):
     """
     Generates the Expert vs Class Heatmap.
-    This shows which experts handle which classes (Specialization).
+    This shows which experts handle which classes
     """
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     
