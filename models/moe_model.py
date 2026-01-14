@@ -32,26 +32,50 @@ class MoEModel(nn.Module):
         ])
 
     def forward(self, x):
-        router_probs = self.router(x) # -> [0.1, 0.8, 0.05, 0.05]
+        """
+        Forward pass of the Mixture of Experts.
         
-        # best top-k expert for each image (Top-1 default)
-        topk_prob, topk_indexes = torch.topk(router_probs, self.top_k, dim=1)
-        
-        batch_size = x.size(0)
-        final_output = torch.zeros(batch_size, self.num_classes, device=x.device)
+        Steps:
+        1. Router calculates probabilities for each expert.
+        2. Select top-k experts for each image.
+        3. Dispatch images to selected experts only (sparse execution).
+        4. Accumulate weighted outputs from experts.
+        5. Calculate auxiliary load balancing loss.
 
+        :param x: Input tensor of shape (Batch_Size, 3, 32, 32)
+        :return: A tuple containing:
+
+            - final_output: (Batch_Size, num_classes) -> Final classification scores.
+            - router_probs: (Batch_Size, num_experts) -> Router's raw confidence scores.
+            - aux_loss: Scalar tensor -> Load balancing loss to ensure expert diversity.
+        """
+
+        #Probs vector, contains the probs that each experts is competent for each image
+        router_probs = self.router(x)
+        
+        # best top-k experts for each image (Top-1 default)
+        topk_probs, topk_indexes = torch.topk(router_probs, self.top_k, dim=1)
+        
+        # empty container for finals results
+        final_output = torch.zeros(x.size(0), self.num_classes, device=x.device)
+
+        #--- Distributing work to experts ---#
         for i, expert in enumerate(self.experts):
             batch_indexes, k_rank = (topk_indexes == i).nonzero(as_tuple=True)
             
+            # if len(batch_indexes) = 0 expert hasnt been chosen for any image
             if len(batch_indexes) > 0:
+
+                #images concerned by current i expert  
                 selected_inputs = x[batch_indexes]
                 
                 # forward pass through the specific expert
                 expert_output = expert(selected_inputs)
                 
                 # weight the output by the gating probability
-                scaling_factor = topk_prob[batch_indexes, k_rank].unsqueeze(1)
+                scaling_factor = topk_probs[batch_indexes, k_rank].unsqueeze(1)
                 
+                # Accumulate weighted expert predictions into the final output tensor
                 final_output[batch_indexes] += expert_output * scaling_factor
         
         # load balancing auxiliary loss
@@ -61,16 +85,3 @@ class MoEModel(nn.Module):
         aux_loss = F.mse_loss(mean_probs, target_probs)
         
         return final_output, router_probs, aux_loss
-
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    x = torch.randn(10, 3, 32, 32).to(device)
-    
-    # Test avec Top-2
-    print("Testing Top-2 routing...")
-    model = MoEModel(num_experts=4, num_classes=10, top_k=2).to(device)
-    outputs, probs, aux_loss = model(x)
-    
-    print(f"Output shape: {outputs.shape}")
-    print(f"Prob shape:   {probs.shape}")
-    print("Success.")

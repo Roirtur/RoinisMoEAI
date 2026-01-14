@@ -18,6 +18,7 @@ def train_baseline(model, train_loader, val_loader, test_loader, epochs, device,
     history_path = save_path.replace('.pth', '_history.json')
 
     criterion = nn.CrossEntropyLoss()
+    
     # Standard SGD for ResNet on CIFAR
     optimizer = optim.SGD(model.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
     scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
