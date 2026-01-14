@@ -61,16 +61,3 @@ class MoEModel(nn.Module):
         aux_loss = F.mse_loss(mean_probs, target_probs)
         
         return final_output, router_probs, aux_loss
-
-if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    x = torch.randn(10, 3, 32, 32).to(device)
-    
-    # Test avec Top-2
-    print("Testing Top-2 routing...")
-    model = MoEModel(num_experts=4, num_classes=10, top_k=2).to(device)
-    outputs, probs, aux_loss = model(x)
-    
-    print(f"Output shape: {outputs.shape}")
-    print(f"Prob shape:   {probs.shape}")
-    print("Success.")
