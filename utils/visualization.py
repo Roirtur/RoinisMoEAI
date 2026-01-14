@@ -301,7 +301,7 @@ def count_active_params_moe(model):
     expert_params = sum(p.numel() for p in model.experts[0].parameters())
     return router_params + (expert_params * model.top_k)
 
-def compare_params_vs_performance(models_data, save_path):
+def compare_params_vs_performance(models_data, save_path, title):
     """
     Scatter plot comparing Model Size (Parameters/FLOPs) vs Accuracy.
     """
@@ -311,9 +311,8 @@ def compare_params_vs_performance(models_data, save_path):
     
     for m in models_data:
         plt.scatter(m['params'], m['accuracy'], s=100, label=m['name'])
-        plt.text(m['params'], m['accuracy'] + 0.5, m['name'], fontsize=9, ha='center')
 
-    plt.title('Accuracy vs. Parameter Count')
+    plt.title(title)
     plt.xlabel('Number of Parameters')
     plt.ylabel('Test Accuracy (%)')
     plt.grid(True, linestyle='--', alpha=0.7)
