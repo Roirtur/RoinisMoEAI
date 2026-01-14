@@ -65,32 +65,6 @@
 }
 \lstset{style=pythonStyle}
 
-% Helper pour insérer des figures (VERSION ROBUSTE: Placeholder)
-% Utilise une boîte vide pour éviter les erreurs de compilation si l'image manque
-\newcommand{\insertPlaceholderFigure}[3][0.8]{
-    \begin{figure}[H]
-        \centering
-        \setlength{\fboxsep}{10pt}
-        \setlength{\fboxrule}{1pt}
-        % Cadre simulant l'image (commenter ce bloc \fbox une fois l'image présente)
-        \fbox{
-            \begin{minipage}{#1\textwidth}
-                \centering
-                \vspace{2cm}
-                % Utilisation de \detokenize pour gérer les underscores dans le nom de fichier affiché
-                \textbf{\large Image manquante : \texttt{\detokenize{#3}}} \\
-                \vspace{0.5cm}
-                \textit{(Placez le fichier image dans le dossier et décommentez la ligne includegraphics)}
-                \vspace{2cm}
-            \end{minipage}
-        }
-        % Décommentez la ligne ci-dessous quand vous avez l'image :
-        % \includegraphics[width=#1\textwidth]{#3}
-        \caption{#2}
-        \label{fig:#3}
-    \end{figure}
-}
-
 \begin{document}
 
 % --- PAGE DE GARDE (Style Université de Bordeaux) ---
@@ -107,14 +81,6 @@
     \HRule \\[0.4cm]
     { \huge \bfseries Implémentation et Analyse d'un Mixture of Experts (MoE) sur CIFAR-10}\\[0.4cm] 
     \HRule \\[1.5cm]
-    
-    % Illustration de garde (Placeholder généré avec TikZ)
-    \begin{tikzpicture}
-        \node[draw, dashed, inner sep=0pt, minimum width=10cm, minimum height=6cm, align=center] {
-            \textbf{Illustration du Projet} \\
-            \small(Ex: Schéma de l'architecture MoE ou Heatmap)
-        };
-    \end{tikzpicture}\\[1.5cm]
     
     \begin{minipage}{0.4\textwidth}
         \begin{flushleft} \large
@@ -198,7 +164,7 @@ Chaque expert est un CNN indépendant conçu pour être plus spécialisé qu'un 
 \end{itemize}
 
 \subsection{Load Balancing (Équilibrage de charge)}
-Un défi majeur des MoE est l'effondrement du routage (Routing Collapse), où le gateur envoie toutes les images vers le même expert. Pour contrer cela, nous avons implémenté une \textbf{perte auxiliaire} ($\mathcal{L}_{aux}$) ajoutée à la fonction de coût principale :
+Un défi majeur des MoE est l'de la spécialisation des experts (Expert Specialization Collapse), où le gateur envoie toutes les images vers le même expert, perdant ainsi son aspect de spécialisation. Pour contrer cela, nous avons implémenté une \textbf{perte auxiliaire} ($\mathcal{L}_{aux}$) ajoutée à la fonction de coût principale :
 $$ \mathcal{L}_{total} = \mathcal{L}_{CrossEntropy} + \lambda \cdot \mathcal{L}_{aux} $$
 Cette perte penalise une distribution inégale de l'utilisation des experts au sein d'un batch (Coefficient de variation des probabilités moyennes).
 
@@ -210,47 +176,70 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
 \begin{itemize}
     \item \textbf{Données :} CIFAR-10 (45k train / 5k val / 10k test).
     \item \textbf{Baseline :} Un CNN dense de largeur ajustable (\texttt{width\_multiplier}) pour correspondre soit au nombre de paramètres total du MoE, soit à son coût d'inférence (FLOPs).
-    \item \textbf{MoE Configuration :} 8 Experts, Top-1 Routing, $\lambda_{aux}=5.0$.
-\end{itemize}
-
-\subsection{Analyse de la Spécialisation (Heatmaps)}
-
-L'analyse la plus pertinente concerne la matrice de confusion entre les classes réelles (Lignes) et les experts choisis (Colonnes).
-
-\insertPlaceholderFigure[0.9]{Heatmap de Spécialisation des Experts (Générée depuis experiments.ipynb)}{expert_specialization_heatmap.png}
-
-\textbf{Observation :} Comme illustré dans la figure ci-dessus (issue de nos expériences), nous observons une diagonale ou des blocs distincts.
-\begin{itemize}
-    \item Le réseau de gating a appris à router des classes sémantiquement proches vers les mêmes experts.
-    \item Par exemple, les classes \texttt{Automobile} et \texttt{Truck} activent souvent le même expert (formes mécaniques, fond de route), tandis que \texttt{Bird}, \texttt{Cat}, \texttt{Dog} sont routés vers un autre groupe d'experts.
-    \item Cela confirme que le modèle a décomposé l'espace du problème en sous-tâches plus simples, sans supervision explicite sur la hiérarchie des classes.
+    \item \textbf{MoE Configuration :} Différents modèles de MoE avec des hyperparamètres variables.
 \end{itemize}
 
 \subsection{Comparaison de Performance}
 
-\begin{table}[H]
-\centering
-\begin{tabularx}{0.9\textwidth}{|l|X|c|}
-\hline
-\rowcolor{gray!20} \textbf{Modèle} & \textbf{Configuration} & \textbf{Précision Test} \\
-\hline
-Baseline Dense & Largeur x1.0 (Faible capacité) & $\approx 78\%$ \\
-\hline
-Baseline Large & Largeur x2.0 (Haute capacité, Lent) & $\approx 83\%$ \\
-\hline
-\textbf{MoE (Notre modèle)} & \textbf{8 Experts, Top-1 (Rapide, Haute Capacité)} & \textbf{$\approx 81-82\%$} \\
-\hline
-\end{tabularx}
-\caption{Comparaison indicative des performances (Valeurs issues des logs d'entraînement)}
-\label{tab:results}
-\end{table}
+\begin{figure}[H]
+    \centering
+    \setlength{\fboxsep}{10pt}
+    \setlength{\fboxrule}{1pt}
+    \includegraphics[width=0.9\textwidth]{graph.png}
+    \caption{Comparaison de performance et de paramètres actifs}
+    \label{fig:graph.png}
+\end{figure}
 
-Le MoE atteint une performance compétitive face à la baseline large, tout en gardant un coût d'inférence (un seul expert actif par image) proche de la petite baseline.
 
-\subsection{Dynamique d'entraînement et Stabilité}
-Nous avons tracé l'utilisation des experts au cours des époques (fichier \texttt{expert\_counts\_evolution.png}). Grâce à la perte auxiliaire, l'utilisation des experts reste équilibrée, évitant qu'un expert ne "meure" (zéro utilisation) ou ne sature.
+\begin{itemize}
+    \item \textbf{Evolution de la baseline :} Le modèle baseline semble suivre une courbe logarithmique: augmenter le nombre de paramètre rend le modèle plus robuste mais est de plus en plus gourmand.
+    \item \textbf{Evolution des MoE :} TODO
+    \item \textbf{Impact du Top-K :} TODO
+    \item \textbf{Impact du du nombre d'expert :} TODO
+    \item \textbf{Impact de l'aux :} TODO
+\end{itemize}
+
+\subsection{Analyse de la Spécialisation}
+
+\begin{figure}[H]
+    \centering
+    \setlength{\fboxsep}{10pt}
+    \setlength{\fboxrule}{1pt}
+    \includegraphics[width=0.9\textwidth]{matrice.png}
+    \caption{Heatmap de routage : Fréquence d'activation de chaque expert pour chaque classe.}
+    \label{fig:matrice.png}
+\end{figure}
+
+\textbf{Interprétation :}
+Nous observons des motifs de blocs distincts sur la matrice. Contrairement à une distribution uniforme (bruit gris), certaines cases sont très lumineuses (jaune/vert clair) et d'autres sombres :
+\begin{itemize}
+    \item \textbf{Regroupement Sémantique :} On remarque souvent que les classes proches sémantiquement (par exemple \textit{Car, Truck, Plane} vs \textit{Cat, Dog, Horse}) tendent à être routées vers les mêmes experts ou groupes d'experts.
+    \item \textbf{Décomposition du problème :} Le gating a appris à diviser le problème de classification en sous-problèmes plus simples. Par exemple, si l'Expert 2 est fortement activé pour les "Véhicules", il a appris des filtres spécifiques aux contours rigides et métalliques, laissant les autres experts se concentrer sur les textures organiques des animaux.
+\end{itemize}
+
+\subsection{Stabilité de l'Entraînement et Load Balancing}
+
+La Figure \ref{fig:stability.png} présente l'évolution de la proportion d'échantillons traités par chaque expert au cours du temps.
+
+\begin{figure}[H]
+    \centering
+    \setlength{\fboxsep}{10pt}
+    \setlength{\fboxrule}{1pt}
+    \includegraphics[width=0.9\textwidth]{stability.png}
+    \caption{Utilisation d'experts}
+    \label{fig:stability.png}
+\end{figure}
+
+\textbf{Analyse :}
+\begin{itemize}
+    \item \textbf{Absence de "Dead Experts" :} TODO
+    \item \textbf{Équilibre cohérent :} TODO comparer avec résultats figure 2
+\end{itemize}
 
 \section{Discussion Critique}
+
+A retravailler
+faut parler du problème de l'expert collapse, de la difficulté a trouvé les bons hyper params (nb d'experts, top k...)
 
 \subsection{Forces}
 \begin{itemize}
