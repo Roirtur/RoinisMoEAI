@@ -84,8 +84,8 @@
     
     \begin{minipage}{0.4\textwidth}
         \begin{flushleft} \large
-        \emph{Auteur :}\\
-        \textbf{Arthur Macdonald, Niels Roudeau}\\
+        \emph{Auteurs :}\\
+        \textbf{Arthur Macdonald\\ Niels Roudeau}\\
         \end{flushleft}
     \end{minipage}
     ~
@@ -164,13 +164,14 @@ Chaque expert est un CNN indépendant conçu pour être plus spécialisé qu'un 
 \end{itemize}
 
 \subsection{Load Balancing (Équilibrage de charge)}
-Un défi majeur des MoE est l'de la spécialisation des experts (Expert Specialization Collapse), où le gateur envoie toutes les images vers le même expert, perdant ainsi son aspect de spécialisation. Pour contrer cela, nous avons implémenté une \textbf{perte auxiliaire} ($\mathcal{L}_{aux}$) ajoutée à la fonction de coût principale :
+Un défi majeur des MoE est d'éviter un scénario de désiquilibrage de la spécialisation des experts (Expert Specialization Collapse), où le gateur envoie toutes les images vers le même expert, perdant ainsi son aspect de spécialisation.\newline
+Pour contrer cela, nous avons implémenté une \textbf{perte auxiliaire} ($\mathcal{L}_{aux}$) ajoutée à la fonction de coût principale :
 $$ \mathcal{L}_{total} = \mathcal{L}_{CrossEntropy} + \lambda \cdot \mathcal{L}_{aux} $$
-Cette perte penalise une distribution inégale de l'utilisation des experts au sein d'un batch (Coefficient de variation des probabilités moyennes).
+Cette perte pénalise une distribution inégale de l'utilisation des experts au sein d'un batch (Coefficient de variation des probabilités moyennes).
 
 \section{Résultats expérimentaux}
 
-L'ensemble des expériences et résultats détaillés sont présentés dans le notebook \textbf{experiments.ipynb}. Nous résumons ici les principaux enseignements.
+L'ensemble des expériences et résultats détaillés sont présentés dans le notebook \textbf{experiments.ipynb}. Nous résumons ici les protocoles choisis et conclusions essentielles.
 
 \subsection{Protocole}
 \begin{itemize}
@@ -186,17 +187,20 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
     \setlength{\fboxsep}{10pt}
     \setlength{\fboxrule}{1pt}
     \includegraphics[width=0.9\textwidth]{graph.png}
-    \caption{Comparaison de performance et de paramètres actifs}
+    \caption{Evolution de la précision en fonction du nombre de paramètres des modèles}
     \label{fig:graph.png}
 \end{figure}
 
 
 \begin{itemize}
-    \item \textbf{Evolution de la baseline :} Le modèle baseline semble suivre une courbe logarithmique: augmenter le nombre de paramètre rend le modèle plus robuste mais est de plus en plus gourmand.
-    \item \textbf{Evolution des MoE :} TODO
-    \item \textbf{Impact du Top-K :} TODO
-    \item \textbf{Impact du du nombre d'expert :} TODO
-    \item \textbf{Impact de l'aux :} TODO
+    \item \textbf{Evolution de la baseline :}\\
+    Le modèle baseline semble suivre une courbe logarithmique: augmenter le nombre de paramètre rend le modèle plus robuste mais est de plus en plus gourmand.
+    \item \textbf{Variations de l'accuracy des MoE :}\\
+   La performance d'un MoE ne dépend pas uniquement de sa taille, mais surtout de l'équilibre entre les experts(aux) et le routage. 
+   Sans contrainte (Aux 0.0), le MoE se limite à un seul expert, c'est ce qu'on veut éviter avec la perte auxiliaire.\\ 
+   L'introduction d'une perte auxiliaire permet de forcer l'usage de plus d'experts, mais cela ne devient réellement bénéfique que si l'on active plusieurs experts simultanément (Top-k à 2 ou 3).\\
+   Cela crée un effet d'ensemble efficace, permettant par exemple au modèle Top-3 de rivaliser avec un modèle dense deux fois plus gros tout en étant moins coûteux.\\
+   Enfin, augmenter aveuglément le nombre total d'experts n'est pas automatiquement bénéfique : si la tâche n'est pas assez complexe, diviser le modèle en trop de sous-parties devient inutile.
 \end{itemize}
 
 \subsection{Analyse de la Spécialisation}
@@ -230,12 +234,21 @@ La Figure \ref{fig:stability.png} présente l'évolution de la proportion d'éch
     \label{fig:stability.png}
 \end{figure}
 
-\textbf{Analyse :}
-\begin{itemize}
-    \item \textbf{Absence de "Dead Experts" :} TODO
-    \item \textbf{Équilibre cohérent :} TODO comparer avec résultats figure 2
-\end{itemize}
 
+\textbf{Analyse :}
+La première conclusion à sortir de la figure 3 est la répartition de l'utilisation des experts, on n'obtient pas d'expert inutile.
+Les pourcentages sont assez proches, on peut noter deux experts piliers de la reflexion E1 et E3, chacun occupant un tiers d'utilisation pour le traitement des données.
+La heatmap permet de comprendre quel expert se spécialise sur quelle classe.
+\begin{itemize}
+    \item L'expert 0 montre une spécialisation marquée pour la classe 6 (Grenouille) et la classe 4. 
+    \item L'expert 2 bien que le plus faible sur l'histogramme (17,5\% de la charge totale) montre une spécialisation nette dans les classes 0 et 8 soit avion et bateau.
+    \item Les experts 1 et 3 sont eux plus polyvalents, ils ne montrent pas un pic de spécialisation pour une certaine classe mais sont majoritaires (~ 1/3 chacun dans l'histogramme).    
+\end{itemize}
+Croiser les analyses de ces deux graphes nous permet de mieux comprendre comment se fait la spécialisation, bien que les experts 1 et 3 occupent chacun un tier du data processing,
+ils ne sont pas spécialistes en tant que tel, ce sont eux qui se chargent suivant le groupe sémantique, (pour CIFAR-10 on distingue les véhicules des animaux) de rechercher les détails plus fins de l'image.
+Ces experts se rendent particulièrement utiles lors de distinctions subtiles entre deux classes, par exemple pour différencier une voiture d'un camion. 
+
+% TODO : rassembler les analyses figure 3 et 2, c'est peut etre un peu trop mélangé
 \section{Discussion Critique}
 
 A retravailler
