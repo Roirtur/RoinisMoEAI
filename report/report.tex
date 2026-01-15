@@ -114,7 +114,7 @@ Dans ce rapport, nous détaillerons :
 \begin{itemize}
     \item Nos choix d'architecture (Gating Network, Experts Convolutionnels).
     \item L'implémentation modulaire en PyTorch.
-    \item Les résultats expérimentaux comparant notre MoE à une Baseline Dense, en analysant spécifiquement la spécialisation des experts.
+    \item Les résultats expérimentaux comparant notre MoE à une \textit{Baseline} Dense, en analysant spécifiquement la spécialisation des experts.
 \end{itemize}
 
 \section{Architecture du Projet}
@@ -149,7 +149,7 @@ Contrairement à un modèle dense où chaque couche traite l'intégralité de l'
 
 L'entrée est une image $x$ de dimension $(3, 32, 32)$.
 \begin{enumerate}
-    \item \textbf{Le Gating Network ($g(x)$)} : Un petit CNN analyse l'image et produit un vecteur de probabilité sur $N$ experts. Nous utilisons un \textit{Noisy Top-k Gating} (ici simplifié en Top-1 ou Top-2 déterministe pour CIFAR).
+    \item \textbf{Le Gating Network ($g(x)$)} : Un petit CNN analyse l'image et produit un vecteur de probabilité sur $N$ experts. Nous utilisons un \textit{Noisy Top-k Gating} (bruit gaussien ajouté à l'entraînement, déterministe à l'inférence).
     \item \textbf{Sélection (Sparse)} : Seuls les indices $k$ ayant les plus hautes probabilités sont retenus.
     \item \textbf{Calcul Expert} : L'image est passée uniquement à travers les experts sélectionnés $E_i(x)$.
     \item \textbf{Agrégation} : La sortie est la somme pondérée des sorties des experts :
@@ -164,10 +164,10 @@ Chaque expert est un CNN indépendant conçu pour être plus spécialisé qu'un 
 \end{itemize}
 
 \subsection{Load Balancing (Équilibrage de charge)}
-Un défi majeur des MoE est d'éviter un scénario de désiquilibrage de la spécialisation des experts (Expert Specialization Collapse), où le gateur envoie toutes les images vers le même expert, perdant ainsi son aspect de spécialisation.\newline
+Un défi majeur des MoE est d'éviter un scénario de déséquilibre de la spécialisation des experts (Expert Specialization Collapse), où le routeur envoie toutes les images vers le même expert, perdant ainsi son aspect de spécialisation.\newline
 Pour contrer cela, nous avons implémenté une \textbf{perte auxiliaire} ($\mathcal{L}_{aux}$) ajoutée à la fonction de coût principale :
 $$ \mathcal{L}_{total} = \mathcal{L}_{CrossEntropy} + \lambda \cdot \mathcal{L}_{aux} $$
-Cette perte pénalise une distribution inégale de l'utilisation des experts au sein d'un batch (Coefficient de variation des probabilités moyennes).
+Cette perte pénalise une distribution inégale de l'utilisation des experts au sein d'un batch (basée sur l'Erreur Quadratique Moyenne - MSE - par rapport à une distribution uniforme).
 
 \section{Résultats expérimentaux}
 
@@ -176,7 +176,7 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
 \subsection{Protocole}
 \begin{itemize}
     \item \textbf{Données :} CIFAR-10 (45k train / 5k val / 10k test).
-    \item \textbf{Baseline :} Un CNN dense de largeur ajustable (\texttt{width\_multiplier}) pour correspondre soit au nombre de paramètres total du MoE, soit à son coût d'inférence (FLOPs).
+    \item \textbf{\textit{Baseline} :} Un CNN dense de largeur ajustable (\texttt{width\_multiplier}) pour correspondre soit au nombre de paramètres total du MoE, soit à son coût d'inférence (FLOPs).
     \item \textbf{MoE Configuration :} Différents modèles de MoE avec des hyperparamètres variables.
 \end{itemize}
 
@@ -193,8 +193,8 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
 
 
 \begin{itemize}
-    \item \textbf{Evolution de la baseline :}\\
-    Le modèle baseline semble suivre une courbe logarithmique: augmenter le nombre de paramètre rend le modèle plus robuste mais est de plus en plus gourmand.
+    \item \textbf{Evolution de la \textit{baseline} :}\\
+    Le modèle \textit{baseline} semble suivre une courbe logarithmique: augmenter le nombre de paramètre rend le modèle plus robuste mais est de plus en plus gourmand.
     \item \textbf{Variations de l'accuracy des MoE :}\\
    La performance d'un MoE ne dépend pas uniquement de sa taille, mais surtout de l'équilibre entre les experts(aux) et le routage. 
    Sans contrainte (Aux 0.0), le MoE se limite à un seul expert, c'est ce qu'on veut éviter avec la perte auxiliaire.\\ 
