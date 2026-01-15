@@ -214,17 +214,6 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
     \label{fig:matrice.png}
 \end{figure}
 
-\textbf{Interprétation :}
-Nous observons des motifs de blocs distincts sur la matrice. Contrairement à une distribution uniforme (bruit gris), certaines cases sont très lumineuses (jaune/vert clair) et d'autres sombres :
-\begin{itemize}
-    \item \textbf{Regroupement Sémantique :} On remarque souvent que les classes proches sémantiquement (par exemple \textit{Car, Truck, Plane} vs \textit{Cat, Dog, Horse}) tendent à être routées vers les mêmes experts ou groupes d'experts.
-    \item \textbf{Décomposition du problème :} Le gating a appris à diviser le problème de classification en sous-problèmes plus simples. Par exemple, si l'Expert 2 est fortement activé pour les "Véhicules", il a appris des filtres spécifiques aux contours rigides et métalliques, laissant les autres experts se concentrer sur les textures organiques des animaux.
-\end{itemize}
-
-\subsection{Stabilité de l'Entraînement et Load Balancing}
-
-La Figure \ref{fig:stability.png} présente l'évolution de la proportion d'échantillons traités par chaque expert au cours du temps.
-
 \begin{figure}[H]
     \centering
     \setlength{\fboxsep}{10pt}
@@ -234,37 +223,83 @@ La Figure \ref{fig:stability.png} présente l'évolution de la proportion d'éch
     \label{fig:stability.png}
 \end{figure}
 
-
 \textbf{Analyse :}
-La première conclusion à sortir de la figure 3 est la répartition de l'utilisation des experts, on n'obtient pas d'expert inutile.
-Les pourcentages sont assez proches, on peut noter deux experts piliers de la reflexion E1 et E3, chacun occupant un tiers d'utilisation pour le traitement des données.
-La heatmap permet de comprendre quel expert se spécialise sur quelle classe.
-\begin{itemize}
-    \item L'expert 0 montre une spécialisation marquée pour la classe 6 (Grenouille) et la classe 4. 
-    \item L'expert 2 bien que le plus faible sur l'histogramme (17,5\% de la charge totale) montre une spécialisation nette dans les classes 0 et 8 soit avion et bateau.
-    \item Les experts 1 et 3 sont eux plus polyvalents, ils ne montrent pas un pic de spécialisation pour une certaine classe mais sont majoritaires (~ 1/3 chacun dans l'histogramme).    
-\end{itemize}
-Croiser les analyses de ces deux graphes nous permet de mieux comprendre comment se fait la spécialisation, bien que les experts 1 et 3 occupent chacun un tier du data processing,
-ils ne sont pas spécialistes en tant que tel, ce sont eux qui se chargent suivant le groupe sémantique, (pour CIFAR-10 on distingue les véhicules des animaux) de rechercher les détails plus fins de l'image.
-Ces experts se rendent particulièrement utiles lors de distinctions subtiles entre deux classes, par exemple pour différencier une voiture d'un camion. 
 
-% TODO : rassembler les analyses figure 3 et 2, c'est peut etre un peu trop mélangé
+L'histogramme d'utilisation (Fig. \ref{fig:stability.png}) montre une répartition relativement équilibrée de la charge, bien que non uniforme. Tous les experts sont sollicités, avec une charge variant de 17,5\% (Expert 2) à 30,0\% (Expert 1). On distingue deux groupes : les experts à forte charge (E1 et E3, $\approx 30\%$ chacun) et ceux à charge modérée (E0 et E2).
+
+Cependant, c'est la matrice de spécialisation (Fig. \ref{fig:matrice.png}) qui révèle la dynamique réelle du modèle. Contrairement à une simple polyvalence, on observe une \textbf{segmentation sémantique} claire entre les classes "Véhicules" et "Animaux" du dataset CIFAR-10.
+
+\begin{itemize}
+    \item \textbf{Groupe "Animaux" (Experts 0 et 3) :}
+    \begin{itemize}
+        \item \textbf{L'Expert 0} est un "spécialiste pointu". Il présente des pics d'activation très intenses (couleur jaune) pour la classe 6 (Grenouille) et la classe 4 (Cerf), et une activité modérée pour les autres animaux.
+        \item \textbf{L'Expert 3} agit comme un "généraliste de catégorie". Bien qu'il n'ait pas de pic jaune vif, il maintient une activation constante (bleu/vert) sur l'ensemble des classes animales (2 à 7), tout en étant très peu actif sur les véhicules.
+    \end{itemize}
+    
+    \item \textbf{Groupe "Véhicules" (Experts 1 et 2) :}
+    \begin{itemize}
+        \item \textbf{L'Expert 2}, bien que le moins utilisé globalement (17,5\%), est hautement spécialisé. Il gère prioritairement la classe 0 (Avion) et la classe 8 (Bateau).
+        \item \textbf{L'Expert 1} est le pendant de l'Expert 3 pour les véhicules. Il montre une activation diffuse mais présente sur les classes mécaniques (1, 8, 9), expliquant sa forte utilisation globale (30\%) sans pour autant avoir de "pic" unique.
+    \end{itemize}
+\end{itemize}
+
 \section{Discussion Critique}
 
-A retravailler
-faut parler du problème de l'expert collapse, de la difficulté a trouvé les bons hyper params (nb d'experts, top k...)
+Bien que les résultats obtenus confirment le potentiel des architectures \textit{Mixture of Experts} sur CIFAR-10, la mise en œuvre de ce genre de modèle nous a permis de mettre le doigt sur quelques limitations.
 
-\subsection{Forces}
+\subsection{Le défi de l'effondrement des experts (Expert Collapse)}
+La difficulté majeure que nous avons rencontrée lors de l'entraînement est le phénomène d'effondrement des experts (\textit{Expert Collapse}). Sans mécanisme de régulation, le réseau de routage tend naturellement vers une solution triviale où il attribue systématiquement la probabilité maximale aux mêmes experts (souvent un ou deux), laissant les autres inactifs.
 \begin{itemize}
-    \item \textbf{Efficacité Pareto :} Le MoE offre un meilleur compromis Précision / FLOPs que les modèles denses.
-    \item \textbf{Interprétabilité :} Contrairement à une boîte noire dense, on peut analyser quel expert s'active pour quelle image, offrant un début d'explicabilité.
+    \item \textbf{Conséquence :} Le modèle redevient un réseau dense standard mais avec beaucoup de paramètres "morts", perdant tout l'intérêt de la capacité conditionnelle.
+    \item \textbf{Contre-mesure :} L'introduction de la perte auxiliaire (ou d'autres stratégies similaire) est indispensable pour forcer une distribution uniforme. Cependant, nous avons observé que cette méthode introduit un conflit d'objectifs : si son poids ($\lambda$) est trop élevé, le routeur privilégie l'équilibre au détriment de la précision de classification (les experts reçoivent des données qui ne leur correspondent pas).
 \end{itemize}
 
-\subsection{Limites et Perspectives}
+\subsection{Sensibilité aux Hyperparamètres}
+Contrairement aux CNN classiques où augmenter la taille améliore souvent la performance de manière monotone, les MoE sont extrêmement sensibles au réglage des hyperparamètres structurels :
 \begin{itemize}
-    \item \textbf{Complexité mémoire :} Bien que rapide en calcul, le modèle complet est lourd à stocker en VRAM car tous les experts doivent être chargés.
-    \item \textbf{Sensibilité aux hyperparamètres :} Le poids de la perte auxiliaire ($\lambda$) est critique. Trop faible, le modèle collapse. Trop fort, il empêche la spécialisation.
-    \item \textbf{Piste d'amélioration :} Implémenter un \textit{Switch Transformer} complet où les couches MoE remplacent les FFN dans un bloc d'attention, plutôt que de simples couches convolutives.
+    \item \textbf{Le Top-k :} Un $k=1$ (Hard Routing) est très rapide mais instable car le gradient ne se propage que vers un seul expert. Un $k=2$ ou $k=3$ permet un effet d'ensemble bénéfique et une meilleure propagation de l'erreur, comme observé dans nos résultats, mais augmente le coût de calcul.
+    \item \textbf{Nombre d'experts :} Augmenter le nombre d'experts n'est pas linéairement corrélé à la performance. Sur un dataset simple comme CIFAR-10, nous avons constaté qu'un nombre excessif d'experts dilue l'information : chaque expert voit trop peu d'échantillons pour apprendre une spécialisation robuste (comme la distinction animaux/véhicules).
 \end{itemize}
+
+\subsection{Coût d'Entraînement et Convergence}
+Une distinction importante doit être faite entre l'efficacité à l'inférence et le coût de l'apprentissage. Si le MoE est efficace lors de son utilisation (inférence \textit{sparse}), son entraînement est paradoxalement plus lourd qu'un modèle dense équivalent :
+\begin{itemize}
+    \item \textbf{Convergence lente :} Le modèle possédant un très grand nombre de paramètres totaux, et chaque expert ne voyant qu'une fraction des données (routage conditionnel), la convergence est plus lente. Il faut plus d'époques pour que chaque sous-réseau apprenne efficacement sa spécialisation.
+    \item \textbf{Impact énergétique :} Cette lenteur à l'entraînement pose un problème écologique et économique. L'entraînement étant l'étape la plus énergivore du cycle de vie d'un modèle (bien plus coûteuse que l'inférence), le surcoût énergétique nécessaire pour entraîner l'immense quantité de paramètres du MoE peut réduire, voire annuler, les gains d'efficacité obtenus lors du déploiement, à moins que le modèle ne soit utilisé à très grande échelle par la suite.
+\end{itemize}
+
+\subsection{Limites Matérielles et Perspectives}
+Bien que le MoE réduise les FLOPs théoriques (coût d'inférence), il n'allège pas la charge mémoire (VRAM). Tous les paramètres de tous les experts doivent être chargés en mémoire, même si seulement une fraction est utilisée par itération.
+Une piste d'amélioration pour des travaux futurs serait de remplacer nos experts convolutifs simples par des blocs Transformer complets (type \textit{Switch Transformer}), où le gain de capacité des MoE est plus documenté, notamment pour la modélisation de séquences complexes.
+
+\section{Bibliographie}
+
+\begin{thebibliography}{9}
+
+\bibitem{wang2024}
+Lean Wang, Huazuo Gao, Chenggang Zhao, Xu Sun, Damai Dai.
+\textit{Auxiliary-Loss-Free Load Balancing Strategy for Mixture-of-Experts}.
+arXiv preprint arXiv:2408.15664, 2024.
+\url{https://arxiv.org/abs/2408.15664}
+
+\bibitem{datacamp}
+DataCamp.
+\textit{What is Mixture of Experts (MoE)?}
+Blog technique.
+\url{https://www.datacamp.com/blog/mixture-of-experts-moe}
+
+\bibitem{hughes2025}
+Chris Hughes.
+\textit{How MoE Models Actually Learn: A Guide to Auxiliary Losses and Expert Balancing}.
+Medium, 2025.
+\url{https://medium.com/@chris.p.hughes10/how-moe-models-actually-learn-a-guide-to-auxiliary-losses-and-expert-balancing-293084e3f600}
+
+\bibitem{youtube_moe}
+Ressource Vidéo.
+\textit{Mixture of Experts Explained}.
+YouTube.
+\url{https://www.youtube.com/watch?v=_P2T4Oi0VxE}
+
+\end{thebibliography}
 
 \end{document}
