@@ -219,7 +219,7 @@ L'ensemble des expériences et résultats détaillés sont présentés dans le n
     \setlength{\fboxsep}{10pt}
     \setlength{\fboxrule}{1pt}
     \includegraphics[width=0.9\textwidth]{stability.png}
-    \caption{Utilisation d'experts}
+    \caption{Répartition de l'utilisation des experts sur l'ensemble des données.}
     \label{fig:stability.png}
 \end{figure}
 
@@ -251,7 +251,7 @@ Bien que les résultats obtenus confirment le potentiel des architectures \texti
 La difficulté majeure que nous avons rencontrée lors de l'entraînement est le phénomène d'effondrement des experts (\textit{Expert Collapse}). Sans mécanisme de régulation, le réseau de routage tend naturellement vers une solution triviale où il attribue systématiquement la probabilité maximale aux mêmes experts (souvent un ou deux), laissant les autres inactifs.
 \begin{itemize}
     \item \textbf{Conséquence :} Le modèle redevient un réseau dense standard mais avec beaucoup de paramètres "morts", perdant tout l'intérêt de la capacité conditionnelle.
-    \item \textbf{Contre-mesure :} L'introduction de la perte auxiliaire (ou d'autres stratégies similaire) est indispensable pour forcer une distribution uniforme. Cependant, nous avons observé que cette méthode introduit un conflit d'objectifs : si son poids ($\lambda$) est trop élevé, le routeur privilégie l'équilibre au détriment de la précision de classification (les experts reçoivent des données qui ne leur correspondent pas).
+    \item \textbf{Contre-mesure :} L'introduction de la perte auxiliaire (ou d'autres stratégies similaires) est indispensable pour forcer une distribution uniforme. Cependant, nous avons observé que cette méthode introduit un conflit d'objectifs : si son poids ($\lambda$) est trop élevé, le routeur privilégie l'équilibre au détriment de la précision de classification (les experts reçoivent des données qui ne leur correspondent pas).
 \end{itemize}
 
 \subsection{Sensibilité aux Hyperparamètres}
